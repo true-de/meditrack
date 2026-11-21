@@ -7,6 +7,9 @@ const API_URL = "/api/medicines";
 const REMINDER_API = "/api/reminders";
 const REMINDER_LOG_API = "/api/reminder-logs";
 const EXPIRY_API = "/api/expiry";
+const FAMILY_API = "/api/family-members";
+const HISTORY_API = "/api/medical-history";
+const VISITS_API = "/api/doctor-visits";
 
 /* All protected API calls go through the Firebase authentication layer,
    which attaches the ID token and transparently refreshes it on 401. */
@@ -35,6 +38,9 @@ const EXPIRY_DISMISSED_KEY = "meditrack.expiry.dismissed";
 let medicines = [];
 let reminders = [];
 let reminderLogs = [];
+let members = [];
+let histories = [];
+let visits = [];
 let expiryData = { summary: {}, medicines: [] };
 let lastExpiryDay = null;
 let editingId = null;
@@ -42,6 +48,12 @@ let pendingDeleteId = null;
 let detailsEditId = null;
 let editingReminderId = null;
 let pendingDeleteReminderId = null;
+let editingMemberId = null;
+let pendingDeleteMemberId = null;
+let editingHistoryId = null;
+let pendingDeleteHistoryId = null;
+let editingVisitId = null;
+let pendingDeleteVisitId = null;
 let currentView = "dashboard";
 let notifTimer = null;
 
@@ -54,6 +66,12 @@ let deleteModal;
 let detailsModal;
 let reminderModal;
 let reminderDeleteModal;
+let memberModal;
+let memberDeleteModal;
+let historyModal;
+let historyDeleteModal;
+let visitModal;
+let visitDeleteModal;
 
 /* ============================================================
    Init
@@ -65,6 +83,12 @@ document.addEventListener("DOMContentLoaded", () => {
     detailsModal = new bootstrap.Modal($("detailsModal"));
     reminderModal = new bootstrap.Modal($("reminderModal"));
     reminderDeleteModal = new bootstrap.Modal($("reminderDeleteModal"));
+    memberModal = new bootstrap.Modal($("memberModal"));
+    memberDeleteModal = new bootstrap.Modal($("memberDeleteModal"));
+    historyModal = new bootstrap.Modal($("historyModal"));
+    historyDeleteModal = new bootstrap.Modal($("historyDeleteModal"));
+    visitModal = new bootstrap.Modal($("visitModal"));
+    visitDeleteModal = new bootstrap.Modal($("visitDeleteModal"));
     bindEvents();
     // Data is only loaded after Firebase Authentication reports a signed-in
     // user (see window.MediTrack below); until then the auth screen is shown.
@@ -77,6 +101,9 @@ document.addEventListener("DOMContentLoaded", () => {
 window.MediTrack = {
     onSignedIn() {
         // Reached only for an authenticated user — start loading dashboard data.
+        loadMembers();
+        loadHistories();
+        loadVisits();
         loadMedicines();
         loadReminders();
         updateNotifUI();
@@ -88,12 +115,18 @@ window.MediTrack = {
         medicines = [];
         reminders = [];
         reminderLogs = [];
+        members = [];
+        histories = [];
+        visits = [];
         expiryData = { summary: {}, medicines: [] };
         lastExpiryDay = null;
         if (notifTimer) { clearInterval(notifTimer); notifTimer = null; }
         renderAll();
         renderReminderAll();
         renderExpiry();
+        renderFamily();
+        renderHistories();
+        renderVisits();
     },
 };
 
@@ -101,7 +134,7 @@ function cacheElements() {
     [
         "sidebar", "sidebarBackdrop", "sidebarToggle", "pageTitle",
         "refreshBtn", "topAddBtn", "navAddMedicine", "toolbarAddBtn", "emptyAddBtn",
-        "searchInput", "statusFilter", "sortSelect",
+        "searchInput", "statusFilter", "sortSelect", "memberFilter",
         "statTotal", "statActive", "statExpiring", "statExpired",
         "invActiveBar", "invActiveCount", "invActivePct",
         "invExpiringBar", "invExpiringCount", "invExpiringPct",
@@ -113,7 +146,7 @@ function cacheElements() {
         "expirySearch", "expiryFilter", "expirySort", "expiryBody", "expiryEmpty",
         "expiryEmptyTitle", "expiryEmptyText",
         "settingsTotal", "settingsLastLoaded", "settingsReloadBtn",
-        "medicineForm", "medicineModalTitle", "medicineId",
+        "medicineForm", "medicineModalTitle", "medicineId", "member_id",
         "name", "dosage", "frequency", "start_date", "expiry_date", "notes",
         "saveBtn", "saveSpinner", "saveBtnText",
         "deleteName", "confirmDeleteBtn", "deleteSpinner", "deleteBtnText",
@@ -127,6 +160,26 @@ function cacheElements() {
         "rmFrequency", "rmStatus", "rmTimesList", "rmAddTimeBtn", "rmTimesHint", "rmTimesError",
         "rmStart", "rmEnd", "reminderSaveBtn", "reminderSaveSpinner", "reminderSaveBtnText",
         "reminderDeleteName", "confirmReminderDeleteBtn", "reminderDeleteSpinner", "reminderDeleteBtnText",
+        // Family members
+        "addMemberBtn", "familyBody", "familyLoading", "familyEmpty", "familyEmptyAddBtn",
+        "memberForm", "memberModalTitle", "memberId", "memberName", "memberRelationship",
+        "memberDob", "memberSaveBtn", "memberSaveSpinner", "memberSaveBtnText",
+        "memberDeleteName", "confirmMemberDeleteBtn", "memberDeleteSpinner", "memberDeleteBtnText",
+        // Medical history
+        "historyMemberFilter", "addHistoryBtn", "historyBody", "historyLoading",
+        "historyEmpty", "historyEmptyTitle", "historyEmptyText", "historyEmptyAddBtn",
+        "historyForm", "historyModalTitle", "historyId", "hmMember", "hmDiagnosisDate",
+        "hmCondition", "hmAllergies", "hmExisting", "hmTreatment", "hmNotes",
+        "historySaveBtn", "historySaveSpinner", "historySaveBtnText",
+        "historyDeleteName", "confirmHistoryDeleteBtn", "historyDeleteSpinner", "historyDeleteBtnText",
+        // Doctor visits
+        "visitMemberFilter", "addVisitBtn", "visitsBody", "visitsLoading",
+        "visitsEmpty", "visitsEmptyTitle", "visitsEmptyText", "visitsEmptyAddBtn",
+        "visitForm", "visitModalTitle", "visitId", "vsMember", "vsDoctorName",
+        "vsSpecialization", "vsHospital", "vsVisitDate", "vsFollowUp", "vsDiagnosis",
+        "vsTreatment", "vsPrescription", "vsNotes",
+        "visitSaveBtn", "visitSaveSpinner", "visitSaveBtnText",
+        "visitDeleteName", "confirmVisitDeleteBtn", "visitDeleteSpinner", "visitDeleteBtnText",
     ].forEach((id) => { els[id] = $(id); });
 }
 
@@ -250,6 +303,47 @@ function bindEvents() {
     els.notifEnableBtn.addEventListener("click", enableNotifications);
     els.notifDisableBtn.addEventListener("click", disableNotifications);
     els.notifTestBtn.addEventListener("click", sendTestNotification);
+
+    // Family member filter on the medicines table
+    els.memberFilter.addEventListener("change", renderTable);
+
+    // ---- Family members ----
+    els.addMemberBtn.addEventListener("click", openAddMember);
+    els.familyEmptyAddBtn.addEventListener("click", openAddMember);
+    els.memberForm.addEventListener("submit", handleMemberSubmit);
+    els.confirmMemberDeleteBtn.addEventListener("click", handleMemberDelete);
+    els.familyBody.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-action]");
+        if (!btn) return;
+        if (btn.dataset.action === "edit") openEditMember(btn.dataset.id);
+        if (btn.dataset.action === "delete") askMemberDelete(btn.dataset.id);
+    });
+
+    // ---- Medical history ----
+    els.addHistoryBtn.addEventListener("click", openAddHistory);
+    els.historyEmptyAddBtn.addEventListener("click", openAddHistory);
+    els.historyMemberFilter.addEventListener("change", renderHistories);
+    els.historyForm.addEventListener("submit", handleHistorySubmit);
+    els.confirmHistoryDeleteBtn.addEventListener("click", handleHistoryDelete);
+    els.historyBody.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-action]");
+        if (!btn) return;
+        if (btn.dataset.action === "edit") openEditHistory(btn.dataset.id);
+        if (btn.dataset.action === "delete") askHistoryDelete(btn.dataset.id);
+    });
+
+    // ---- Doctor visits ----
+    els.addVisitBtn.addEventListener("click", openAddVisit);
+    els.visitsEmptyAddBtn.addEventListener("click", openAddVisit);
+    els.visitMemberFilter.addEventListener("change", renderVisits);
+    els.visitForm.addEventListener("submit", handleVisitSubmit);
+    els.confirmVisitDeleteBtn.addEventListener("click", handleVisitDelete);
+    els.visitsBody.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-action]");
+        if (!btn) return;
+        if (btn.dataset.action === "edit") openEditVisit(btn.dataset.id);
+        if (btn.dataset.action === "delete") askVisitDelete(btn.dataset.id);
+    });
 }
 
 /* ============================================================
@@ -425,6 +519,8 @@ function openAddModal() {
     editingId = null;
     els.medicineForm.reset();
     clearValidation();
+    fillMemberSelects();
+    els.member_id.value = "self";
     els.medicineModalTitle.textContent = "Add Medicine";
     els.saveBtnText.textContent = "Save Medicine";
     medicineModal.show();

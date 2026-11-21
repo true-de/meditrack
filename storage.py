@@ -21,7 +21,7 @@ import os
 import uuid
 from datetime import datetime
 
-from models import DEFAULT_MEMBER_ID, log_document_id
+from models import DEFAULT_MEMBER_ID, RECORD_COLLECTIONS, log_document_id
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +29,25 @@ logger = logging.getLogger(__name__)
 # keeps Firestore responses byte-compatible with the old JSON responses.
 API_FIELDS = {
     "users": ("uid", "name", "email", "created_at", "updated_at", "account_status"),
-    "medicines": ("id", "name", "dosage", "frequency", "start_date", "expiry_date", "notes"),
-    "reminders": ("id", "medicine_id", "medicine_name", "dosage", "frequency", "times",
-                  "start_date", "end_date", "status", "created_at"),
+    "medicines": ("id", "member_id", "name", "dosage", "frequency", "start_date",
+                  "expiry_date", "notes"),
+    "reminders": ("id", "member_id", "medicine_id", "medicine_name", "dosage",
+                  "frequency", "times", "start_date", "end_date", "status", "created_at"),
     "reminder_logs": ("id", "reminder_id", "medicine_id", "medicine_name", "dosage",
                       "date", "time", "status", "recorded_at"),
+    "family_members": ("id", "name", "relationship", "date_of_birth", "created_at"),
+    "medical_histories": ("id", "member_id", "condition", "diagnosis_date", "allergies",
+                          "existing_conditions", "treatment", "notes", "created_at"),
+    "doctor_visits": ("id", "member_id", "doctor_name", "specialization", "hospital",
+                      "visit_date", "diagnosis", "treatment", "prescription_notes",
+                      "follow_up_date", "notes", "created_at"),
 }
+
+# Collections that store member-scoped records (used by the member-deletion
+# safety check so a member cannot be removed while records still reference it).
+MEMBER_SCOPED_COLLECTIONS = (
+    "medicines", "reminders", "medical_histories", "doctor_visits",
+)
 
 
 def now_iso():
@@ -78,11 +91,24 @@ class JsonStorage:
         self.reminder_file = os.path.join(data_dir, "reminders.json")
         self.log_file = os.path.join(data_dir, "reminder_logs.json")
         self.user_file = os.path.join(data_dir, "users.json")
+        # Family / medical-history / doctor-visit files (one per collection).
+        self.record_files = {
+            name: os.path.join(data_dir, filename)
+            for name, filename in RECORD_COLLECTIONS.items()
+        }
         os.makedirs(data_dir, exist_ok=True)
-        for path in (self.data_file, self.reminder_file, self.log_file, self.user_file):
+        every_file = [self.data_file, self.reminder_file, self.log_file, self.user_file]
+        every_file += list(self.record_files.values())
+        for path in every_file:
             if not os.path.exists(path):
                 with open(path, "w") as handle:
                     json.dump([], handle)
+
+    def _record_file(self, collection):
+        path = self.record_files.get(collection)
+        if path is None:
+            raise StorageError("Unknown collection: {}".format(collection))
+        return path
 
     # -- low level -------------------------------------------------
     def _load(self, path):
@@ -114,7 +140,10 @@ class JsonStorage:
 
     # -- medicines -------------------------------------------------
     def list_medicines(self, owner):
-        return self._load(self.data_file)
+        # Legacy records have no member_id; present them as the account holder
+        # ("self") without altering the stored JSON.
+        return [dict(m, member_id=m.get("member_id") or DEFAULT_MEMBER_ID)
+                for m in self._load(self.data_file)]
 
     def get_medicine(self, owner, medicine_id):
         for medicine in self._load(self.data_file):
@@ -256,6 +285,60 @@ class JsonStorage:
         self._save(self.user_file, users)
         return entry
 
+    # -- generic member-scoped records -----------------------------
+    # Used by family_members / medical_histories / doctor_visits so the three
+    # new modules share one implementation. Single-tenant, so ``owner`` is
+    # accepted for API symmetry but not needed to separate rows.
+    def list_records(self, owner, collection):
+        return self._load(self._record_file(collection))
+
+    def get_record(self, owner, collection, record_id):
+        for record in self._load(self._record_file(collection)):
+            if record.get("id") == record_id:
+                return record
+        raise NotFound()
+
+    def create_record(self, owner, collection, record):
+        items = self._load(self._record_file(collection))
+        items.append(record)
+        self._save(self._record_file(collection), items)
+        return record
+
+    def update_record(self, owner, collection, record_id, changes):
+        items = self._load(self._record_file(collection))
+        for index, record in enumerate(items):
+            if record.get("id") == record_id:
+                record.update(changes)
+                items[index] = record
+                self._save(self._record_file(collection), items)
+                return record
+        raise NotFound()
+
+    def delete_record(self, owner, collection, record_id):
+        items = self._load(self._record_file(collection))
+        for index, record in enumerate(items):
+            if record.get("id") == record_id:
+                removed = items.pop(index)
+                self._save(self._record_file(collection), items)
+                return removed
+        raise NotFound()
+
+    def member_record_counts(self, owner, member_id):
+        """Count records still referencing ``member_id`` (deletion safety)."""
+        counts = {}
+        if any(m.get("member_id") == member_id for m in self._load(self.data_file)):
+            counts["medicines"] = sum(
+                1 for m in self._load(self.data_file) if m.get("member_id") == member_id)
+        for collection in ("reminders", "medical_histories", "doctor_visits"):
+            if collection == "reminders":
+                items = self._load(self.reminder_file)
+            else:
+                items = self._load(self._record_file(collection))
+            n = sum(1 for r in items if r.get("member_id") == member_id)
+            if n:
+                counts[collection] = n
+        return counts
+
 
 # ---------------------------------------------------------------
 # Firestore backend
@@ -279,7 +362,12 @@ class FirestoreStorage:
         for field in API_FIELDS[name]:
             value = data.get(field)
             if value is None:
-                value = [] if field == "times" else ""
+                if field == "times":
+                    value = []
+                elif field == "member_id":
+                    value = self.default_member_id
+                else:
+                    value = ""
             result[field] = value
         return result
 
@@ -424,6 +512,46 @@ class FirestoreStorage:
         ref.set(document, merge=True)
         final = ref.get().to_dict() or {}
         return self._project("reminder_logs", final), created
+
+    # -- generic member-scoped records -----------------------------
+    # Every read is filtered by the verified owner; every write stamps
+    # ``owner_user_id`` so one account can never reach another's records.
+    def list_records(self, owner, collection):
+        query = self._collection(collection).where("owner_user_id", "==", owner)
+        return [self._project(collection, snap.to_dict() or {}) for snap in query.stream()]
+
+    def get_record(self, owner, collection, record_id):
+        return self._project(collection, self._owned(collection, owner, record_id))
+
+    def create_record(self, owner, collection, record):
+        document = dict(record)
+        document["owner_user_id"] = owner
+        document.setdefault("member_id", self.default_member_id)
+        document.setdefault("created_at", now_iso())
+        self._collection(collection).document(record["id"]).set(document)
+        return self._project(collection, document)
+
+    def update_record(self, owner, collection, record_id, changes):
+        self._owned(collection, owner, record_id)
+        self._collection(collection).document(record_id).set(changes, merge=True)
+        return self._project(collection, self._owned(collection, owner, record_id))
+
+    def delete_record(self, owner, collection, record_id):
+        data = self._owned(collection, owner, record_id)
+        self._collection(collection).document(record_id).delete()
+        return self._project(collection, data)
+
+    def member_record_counts(self, owner, member_id):
+        """Count records still referencing ``member_id`` (deletion safety)."""
+        counts = {}
+        for collection in MEMBER_SCOPED_COLLECTIONS:
+            query = (self._collection(collection)
+                     .where("owner_user_id", "==", owner)
+                     .where("member_id", "==", member_id))
+            n = sum(1 for _ in query.stream())
+            if n:
+                counts[collection] = n
+        return counts
 
 
 # ---------------------------------------------------------------

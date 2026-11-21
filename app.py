@@ -6,6 +6,7 @@ from datetime import datetime
 
 import firebase_config
 from auth import require_auth, auth_is_enforced
+from models import DEFAULT_MEMBER_ID
 from storage import (
     get_storage, set_storage, JsonStorage, FirestoreStorage,
     StorageError, NotFound, Forbidden,
@@ -55,6 +56,26 @@ def is_valid_date(value):
         return True
     except (ValueError, TypeError):
         return False
+
+
+# Resolve and validate the family member a record belongs to.
+# "" / missing -> the account holder ("self"). Any other value must reference a
+# family member owned by the signed-in user, otherwise the request is rejected.
+def resolve_member_id(owner, value):
+    if value is None:
+        return DEFAULT_MEMBER_ID, None
+    if not isinstance(value, str):
+        return None, "'member_id' must be text"
+    value = value.strip()
+    if not value:
+        return DEFAULT_MEMBER_ID, None
+    if value == DEFAULT_MEMBER_ID:
+        return value, None
+    try:
+        get_storage().get_record(owner, "family_members", value)
+    except NotFound:
+        return None, "Unknown family member"
+    return value, None
 
 
 # Validate an incoming medicine payload
@@ -177,8 +198,13 @@ def add_medicine():
     if error:
         return jsonify(error), 400
 
+    member_id, member_error = resolve_member_id(g.owner, data.get("member_id"))
+    if member_error:
+        return jsonify({"error": "Validation failed", "details": {"member_id": member_error}}), 400
+
     new_medicine = {
         "id": str(uuid.uuid4()),
+        "member_id": member_id,
         "name": cleaned["name"],
         "dosage": cleaned["dosage"],
         "frequency": cleaned["frequency"],
@@ -218,6 +244,15 @@ def update_medicine(medicine_id):
     for field in OPTIONAL_FIELDS:
         if field in cleaned:
             changes[field] = cleaned[field]
+
+    # Only re-scope the medicine when the client explicitly sends member_id, so
+    # an edit that omits it never silently resets the family association.
+    if "member_id" in data:
+        member_id, member_error = resolve_member_id(g.owner, data.get("member_id"))
+        if member_error:
+            return jsonify({"error": "Validation failed",
+                            "details": {"member_id": member_error}}), 400
+        changes["member_id"] = member_id
 
     medicine = get_storage().update_medicine(g.owner, medicine_id, changes)
 
@@ -527,6 +562,7 @@ def get_expiry():
 
         items.append({
             "id": medicine.get("id", ""),
+            "member_id": medicine.get("member_id", DEFAULT_MEMBER_ID),
             "name": medicine.get("name", ""),
             "dosage": medicine.get("dosage", ""),
             "expiry_date": medicine.get("expiry_date", ""),
@@ -547,6 +583,369 @@ def get_expiry():
                 summary["active"] += 1
 
     return jsonify({"summary": summary, "medicines": items})
+
+
+# ---------------------------------------------------------------
+# Family management
+# Every member is owned by the signed-in user (owner_user_id) and only
+# that user can read or change it. Medicines, reminders, medical
+# histories and doctor visits reference a member by ``member_id``.
+# ---------------------------------------------------------------
+def validate_family_member(data):
+    if not isinstance(data, dict):
+        return None, {"error": "Request body must be a JSON object"}
+
+    errors = {}
+    cleaned = {}
+
+    name = data.get("name")
+    if not isinstance(name, str) or not name.strip():
+        errors["name"] = "'name' is required and cannot be empty"
+    else:
+        cleaned["name"] = name.strip()
+
+    relationship = data.get("relationship")
+    if relationship in (None, ""):
+        cleaned["relationship"] = ""
+    elif not isinstance(relationship, str):
+        errors["relationship"] = "'relationship' must be text"
+    else:
+        cleaned["relationship"] = relationship.strip()
+
+    dob = data.get("date_of_birth")
+    if dob in (None, ""):
+        cleaned["date_of_birth"] = ""
+    elif not isinstance(dob, str) or not is_valid_date(dob.strip()):
+        errors["date_of_birth"] = "'date_of_birth' must be a valid date (YYYY-MM-DD)"
+    elif datetime.strptime(dob.strip(), "%Y-%m-%d").date() > datetime.now().date():
+        errors["date_of_birth"] = "'date_of_birth' cannot be in the future"
+    else:
+        cleaned["date_of_birth"] = dob.strip()
+
+    if errors:
+        return None, {"error": "Validation failed", "details": errors}
+    return cleaned, None
+
+
+@app.route("/api/family-members", methods=["GET"])
+@require_auth
+def get_family_members():
+    return jsonify(get_storage().list_records(g.owner, "family_members"))
+
+
+@app.route("/api/family-members", methods=["POST"])
+@require_auth
+def add_family_member():
+    data = request.get_json(silent=True)
+    cleaned, error = validate_family_member(data)
+    if error:
+        return jsonify(error), 400
+
+    member = {
+        "id": str(uuid.uuid4()),
+        "name": cleaned["name"],
+        "relationship": cleaned.get("relationship", ""),
+        "date_of_birth": cleaned.get("date_of_birth", ""),
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    created = get_storage().create_record(g.owner, "family_members", member)
+    return jsonify({"message": "Family member added successfully", "member": created}), 201
+
+
+@app.route("/api/family-members/<member_id>", methods=["GET"])
+@require_auth
+def get_family_member(member_id):
+    return jsonify(get_storage().get_record(g.owner, "family_members", member_id))
+
+
+@app.route("/api/family-members/<member_id>", methods=["PUT"])
+@require_auth
+def update_family_member(member_id):
+    data = request.get_json(silent=True)
+    cleaned, error = validate_family_member(data)
+    if error:
+        return jsonify(error), 400
+
+    changes = {
+        "name": cleaned["name"],
+        "relationship": cleaned.get("relationship", ""),
+        "date_of_birth": cleaned.get("date_of_birth", ""),
+    }
+    member = get_storage().update_record(g.owner, "family_members", member_id, changes)
+    return jsonify({"message": "Family member updated successfully", "member": member})
+
+
+@app.route("/api/family-members/<member_id>", methods=["DELETE"])
+@require_auth
+def delete_family_member(member_id):
+    if member_id == DEFAULT_MEMBER_ID:
+        return jsonify({"error": "The account holder record cannot be deleted"}), 400
+
+    # Safe delete: never orphan records. Refuse while anything still points at
+    # this member and tell the user what to move or remove first.
+    counts = get_storage().member_record_counts(g.owner, member_id)
+    if counts:
+        return jsonify({
+            "error": "This family member still has associated records. Reassign or "
+                     "remove them before deleting the member.",
+            "details": counts,
+        }), 409
+
+    removed = get_storage().delete_record(g.owner, "family_members", member_id)
+    return jsonify({"message": "Family member deleted successfully", "member": removed})
+
+
+# ---------------------------------------------------------------
+# Medical history
+# Owner-scoped medical records (condition, diagnosis date, allergies,
+# existing conditions, treatment, notes) linked to a family member.
+# ---------------------------------------------------------------
+MEDICAL_TEXT_FIELDS = ("allergies", "existing_conditions", "treatment", "notes")
+
+
+def _clean_optional_text(data, fields, errors, cleaned):
+    for field in fields:
+        value = data.get(field)
+        if value in (None, ""):
+            cleaned[field] = ""
+        elif not isinstance(value, str):
+            errors[field] = "'{}' must be text".format(field)
+        else:
+            cleaned[field] = value.strip()
+
+
+def _clean_optional_date(data, field, errors, cleaned, allow_future=False):
+    value = data.get(field)
+    if value in (None, ""):
+        cleaned[field] = ""
+        return
+    if not isinstance(value, str) or not is_valid_date(value.strip()):
+        errors[field] = "'{}' must be a valid date (YYYY-MM-DD)".format(field)
+        return
+    parsed = datetime.strptime(value.strip(), "%Y-%m-%d").date()
+    if not allow_future and parsed > datetime.now().date():
+        errors[field] = "'{}' cannot be in the future".format(field)
+        return
+    cleaned[field] = value.strip()
+
+
+def validate_history(data):
+    if not isinstance(data, dict):
+        return None, {"error": "Request body must be a JSON object"}
+
+    errors = {}
+    cleaned = {}
+
+    condition = data.get("condition")
+    if not isinstance(condition, str) or not condition.strip():
+        errors["condition"] = "'condition' is required and cannot be empty"
+    else:
+        cleaned["condition"] = condition.strip()
+
+    _clean_optional_text(data, MEDICAL_TEXT_FIELDS, errors, cleaned)
+    _clean_optional_date(data, "diagnosis_date", errors, cleaned)
+
+    if errors:
+        return None, {"error": "Validation failed", "details": errors}
+    return cleaned, None
+
+
+@app.route("/api/medical-history", methods=["GET"])
+@require_auth
+def get_medical_history():
+    records = get_storage().list_records(g.owner, "medical_histories")
+    member = request.args.get("member_id")
+    if member:
+        records = [r for r in records if r.get("member_id") == member]
+    return jsonify(records)
+
+
+@app.route("/api/medical-history", methods=["POST"])
+@require_auth
+def add_medical_history():
+    data = request.get_json(silent=True)
+    cleaned, error = validate_history(data)
+    if error:
+        return jsonify(error), 400
+
+    member_id, member_error = resolve_member_id(g.owner, data.get("member_id"))
+    if member_error:
+        return jsonify({"error": "Validation failed", "details": {"member_id": member_error}}), 400
+
+    record = {
+        "id": str(uuid.uuid4()),
+        "member_id": member_id,
+        "condition": cleaned["condition"],
+        "diagnosis_date": cleaned.get("diagnosis_date", ""),
+        "allergies": cleaned.get("allergies", ""),
+        "existing_conditions": cleaned.get("existing_conditions", ""),
+        "treatment": cleaned.get("treatment", ""),
+        "notes": cleaned.get("notes", ""),
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    created = get_storage().create_record(g.owner, "medical_histories", record)
+    return jsonify({"message": "Medical history added successfully", "record": created}), 201
+
+
+@app.route("/api/medical-history/<history_id>", methods=["GET"])
+@require_auth
+def get_medical_history_item(history_id):
+    return jsonify(get_storage().get_record(g.owner, "medical_histories", history_id))
+
+
+@app.route("/api/medical-history/<history_id>", methods=["PUT"])
+@require_auth
+def update_medical_history(history_id):
+    data = request.get_json(silent=True)
+    cleaned, error = validate_history(data)
+    if error:
+        return jsonify(error), 400
+
+    changes = {
+        "condition": cleaned["condition"],
+        "diagnosis_date": cleaned.get("diagnosis_date", ""),
+        "allergies": cleaned.get("allergies", ""),
+        "existing_conditions": cleaned.get("existing_conditions", ""),
+        "treatment": cleaned.get("treatment", ""),
+        "notes": cleaned.get("notes", ""),
+    }
+    if "member_id" in data:
+        member_id, member_error = resolve_member_id(g.owner, data.get("member_id"))
+        if member_error:
+            return jsonify({"error": "Validation failed",
+                            "details": {"member_id": member_error}}), 400
+        changes["member_id"] = member_id
+
+    record = get_storage().update_record(g.owner, "medical_histories", history_id, changes)
+    return jsonify({"message": "Medical history updated successfully", "record": record})
+
+
+@app.route("/api/medical-history/<history_id>", methods=["DELETE"])
+@require_auth
+def delete_medical_history(history_id):
+    removed = get_storage().delete_record(g.owner, "medical_histories", history_id)
+    return jsonify({"message": "Medical history deleted successfully", "record": removed})
+
+
+# ---------------------------------------------------------------
+# Doctor & treatment history
+# Owner-scoped visits (doctor, hospital, appointment date, diagnosis,
+# treatment, prescription notes, follow-up date, notes).
+# ---------------------------------------------------------------
+VISIT_TEXT_FIELDS = (
+    "specialization", "hospital", "diagnosis", "treatment", "prescription_notes", "notes",
+)
+
+
+def validate_visit(data):
+    if not isinstance(data, dict):
+        return None, {"error": "Request body must be a JSON object"}
+
+    errors = {}
+    cleaned = {}
+
+    doctor_name = data.get("doctor_name")
+    if not isinstance(doctor_name, str) or not doctor_name.strip():
+        errors["doctor_name"] = "'doctor_name' is required and cannot be empty"
+    else:
+        cleaned["doctor_name"] = doctor_name.strip()
+
+    _clean_optional_text(data, VISIT_TEXT_FIELDS, errors, cleaned)
+    # Appointment / follow-up dates may legitimately be in the future.
+    _clean_optional_date(data, "visit_date", errors, cleaned, allow_future=True)
+    _clean_optional_date(data, "follow_up_date", errors, cleaned, allow_future=True)
+
+    visit_date = cleaned.get("visit_date")
+    follow_up = cleaned.get("follow_up_date")
+    if visit_date and follow_up and follow_up < visit_date:
+        errors["follow_up_date"] = "'follow_up_date' cannot be earlier than 'visit_date'"
+
+    if errors:
+        return None, {"error": "Validation failed", "details": errors}
+    return cleaned, None
+
+
+@app.route("/api/doctor-visits", methods=["GET"])
+@require_auth
+def get_doctor_visits():
+    records = get_storage().list_records(g.owner, "doctor_visits")
+    member = request.args.get("member_id")
+    if member:
+        records = [r for r in records if r.get("member_id") == member]
+    return jsonify(records)
+
+
+@app.route("/api/doctor-visits", methods=["POST"])
+@require_auth
+def add_doctor_visit():
+    data = request.get_json(silent=True)
+    cleaned, error = validate_visit(data)
+    if error:
+        return jsonify(error), 400
+
+    member_id, member_error = resolve_member_id(g.owner, data.get("member_id"))
+    if member_error:
+        return jsonify({"error": "Validation failed", "details": {"member_id": member_error}}), 400
+
+    record = {
+        "id": str(uuid.uuid4()),
+        "member_id": member_id,
+        "doctor_name": cleaned["doctor_name"],
+        "specialization": cleaned.get("specialization", ""),
+        "hospital": cleaned.get("hospital", ""),
+        "visit_date": cleaned.get("visit_date", ""),
+        "diagnosis": cleaned.get("diagnosis", ""),
+        "treatment": cleaned.get("treatment", ""),
+        "prescription_notes": cleaned.get("prescription_notes", ""),
+        "follow_up_date": cleaned.get("follow_up_date", ""),
+        "notes": cleaned.get("notes", ""),
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    created = get_storage().create_record(g.owner, "doctor_visits", record)
+    return jsonify({"message": "Doctor visit added successfully", "record": created}), 201
+
+
+@app.route("/api/doctor-visits/<visit_id>", methods=["GET"])
+@require_auth
+def get_doctor_visit(visit_id):
+    return jsonify(get_storage().get_record(g.owner, "doctor_visits", visit_id))
+
+
+@app.route("/api/doctor-visits/<visit_id>", methods=["PUT"])
+@require_auth
+def update_doctor_visit(visit_id):
+    data = request.get_json(silent=True)
+    cleaned, error = validate_visit(data)
+    if error:
+        return jsonify(error), 400
+
+    changes = {
+        "doctor_name": cleaned["doctor_name"],
+        "specialization": cleaned.get("specialization", ""),
+        "hospital": cleaned.get("hospital", ""),
+        "visit_date": cleaned.get("visit_date", ""),
+        "diagnosis": cleaned.get("diagnosis", ""),
+        "treatment": cleaned.get("treatment", ""),
+        "prescription_notes": cleaned.get("prescription_notes", ""),
+        "follow_up_date": cleaned.get("follow_up_date", ""),
+        "notes": cleaned.get("notes", ""),
+    }
+    if "member_id" in data:
+        member_id, member_error = resolve_member_id(g.owner, data.get("member_id"))
+        if member_error:
+            return jsonify({"error": "Validation failed",
+                            "details": {"member_id": member_error}}), 400
+        changes["member_id"] = member_id
+
+    record = get_storage().update_record(g.owner, "doctor_visits", visit_id, changes)
+    return jsonify({"message": "Doctor visit updated successfully", "record": record})
+
+
+@app.route("/api/doctor-visits/<visit_id>", methods=["DELETE"])
+@require_auth
+def delete_doctor_visit(visit_id):
+    removed = get_storage().delete_record(g.owner, "doctor_visits", visit_id)
+    return jsonify({"message": "Doctor visit deleted successfully", "record": removed})
 
 
 # ---------------------------------------------------------------

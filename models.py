@@ -8,9 +8,8 @@ Relationship / ownership rules
 ------------------------------
 * Every document carries ``owner_user_id`` = the VERIFIED Firebase Auth UID.
   The value supplied by the frontend is never trusted.
-* ``member_id`` identifies the family member the record belongs to. Step 8 does
-  not add family-management UI, so new records default to ``"self"``; the field
-  is stored so future steps can re-scope records without a migration.
+* ``member_id`` identifies the family member the record belongs to. Records
+  default to ``"self"`` (the account holder) until the user adds family members.
 * Document ID conventions:
     - users            -> Firebase Auth UID
     - medicines        -> the existing medicine id (preserved on migration)
@@ -29,16 +28,19 @@ DEFAULT_PROJECT_ID = "meditrack-3a681"
 # exists. Deliberately NOT a user identity - see migrate_to_firestore.py.
 DEFAULT_MEMBER_ID = "self"
 
-# Collections used by the running application (Step 8).
+# Collections used by the running application.
 # ``users`` holds one profile document per Firebase Auth account.
-CORE_COLLECTIONS = ("users", "medicines", "reminders", "reminder_logs")
+CORE_COLLECTIONS = (
+    "users", "medicines", "reminders", "reminder_logs",
+    "family_members", "medical_histories", "doctor_visits",
+)
 
 # Full modelled structure (documented for future steps; only the core
 # collections are written today).
 FIELD_SCHEMA = {
     "users": ["uid", "name", "email", "created_at", "updated_at", "account_status"],
     "family_members": [
-        "member_id", "owner_user_id", "name", "date_of_birth",
+        "id", "owner_user_id", "name", "date_of_birth",
         "relationship", "created_at",
     ],
     "medicines": [
@@ -55,13 +57,13 @@ FIELD_SCHEMA = {
         "completed_at",
     ],
     "medical_histories": [
-        "history_id", "owner_user_id", "member_id", "condition",
-        "diagnosis_date", "treatment", "notes", "created_at",
+        "id", "owner_user_id", "member_id", "condition", "diagnosis_date",
+        "allergies", "existing_conditions", "treatment", "notes", "created_at",
     ],
     "doctor_visits": [
-        "visit_id", "owner_user_id", "member_id", "doctor_name",
-        "specialization", "hospital", "visit_date", "diagnosis", "treatment",
-        "notes", "created_at",
+        "id", "owner_user_id", "member_id", "doctor_name", "specialization",
+        "hospital", "visit_date", "diagnosis", "treatment",
+        "prescription_notes", "follow_up_date", "notes", "created_at",
     ],
     # Designed for future Firebase Storage integration (not implemented yet).
     "prescriptions": [
@@ -76,12 +78,16 @@ FIELD_SCHEMA = {
     ],
 }
 
-# Collections intentionally left empty in Step 8 (no source data, no UI yet).
-# ``users`` is now active (see CORE_COLLECTIONS above).
-PLANNED_COLLECTIONS = (
-    "family_members", "medical_histories", "doctor_visits",
-    "prescriptions", "medical_documents",
-)
+# Collections with their own file in JSON fallback mode and generic CRUD in the
+# storage layer (family member, medical history and doctor/treatment records).
+RECORD_COLLECTIONS = {
+    "family_members": "family_members.json",
+    "medical_histories": "medical_histories.json",
+    "doctor_visits": "doctor_visits.json",
+}
+
+# Collections left for a future step (no UI / no storage methods yet).
+PLANNED_COLLECTIONS = ("prescriptions", "medical_documents")
 
 
 def log_document_id(reminder_id, date, time):

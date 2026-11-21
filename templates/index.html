@@ -118,6 +118,15 @@
       <a href="#" class="side-link" data-view="medicines">
         <i class="bi bi-capsule"></i><span>Medicines</span>
       </a>
+      <a href="#" class="side-link" data-view="family">
+        <i class="bi bi-people"></i><span>Family</span>
+      </a>
+      <a href="#" class="side-link" data-view="history">
+        <i class="bi bi-clipboard2-pulse"></i><span>Medical History</span>
+      </a>
+      <a href="#" class="side-link" data-view="visits">
+        <i class="bi bi-hospital"></i><span>Doctor Visits</span>
+      </a>
       <a href="#" class="side-link" data-view="expiry">
         <i class="bi bi-calendar-x"></i><span>Expiry Tracking</span>
       </a>
@@ -267,6 +276,9 @@
                 <option value="active">Active</option>
                 <option value="expiring">Expiring soon</option>
                 <option value="expired">Expired</option>
+              </select>
+              <select class="form-select form-select-sm filter-select" id="memberFilter" aria-label="Filter by family member">
+                <option value="all">All family members</option>
               </select>
               <select class="form-select form-select-sm filter-select" id="sortSelect" aria-label="Sort medicines">
                 <option value="default">Sort: Recently added</option>
@@ -533,6 +545,133 @@
         </div>
       </section>
 
+      <!-- ============ FAMILY VIEW ============ -->
+      <section id="view-family" class="view d-none">
+        <div class="panel">
+          <div class="panel-header flex-wrap gap-2">
+            <h2 class="panel-title"><i class="bi bi-people me-2"></i>Family Members</h2>
+            <div class="toolbar">
+              <button class="btn btn-primary btn-sm text-nowrap" id="addMemberBtn">
+                <i class="bi bi-plus-lg"></i><span class="ms-1">Add Member</span>
+              </button>
+            </div>
+          </div>
+          <div class="panel-body p-0">
+            <div class="table-responsive">
+              <table class="table medicines-table align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Relationship</th>
+                    <th>Date of birth</th>
+                    <th>Medicines</th>
+                    <th class="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="familyBody"></tbody>
+              </table>
+            </div>
+            <div class="loading-state d-none" id="familyLoading">
+              <div class="spinner-border text-primary" role="status"></div>
+              <p class="mt-2 mb-0 text-muted">Loading family members...</p>
+            </div>
+            <div class="empty-state d-none" id="familyEmpty">
+              <i class="bi bi-people"></i>
+              <h3>No family members yet</h3>
+              <p class="mb-3">Add family members to organise medicines, medical history and doctor visits for each person.</p>
+              <button class="btn btn-primary btn-sm" id="familyEmptyAddBtn"><i class="bi bi-plus-lg me-1"></i>Add Member</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ MEDICAL HISTORY VIEW ============ -->
+      <section id="view-history" class="view d-none">
+        <div class="panel">
+          <div class="panel-header flex-wrap gap-2">
+            <h2 class="panel-title"><i class="bi bi-clipboard2-pulse me-2"></i>Medical History</h2>
+            <div class="toolbar">
+              <select class="form-select form-select-sm filter-select" id="historyMemberFilter" aria-label="Filter by family member">
+                <option value="all">All family members</option>
+              </select>
+              <button class="btn btn-primary btn-sm text-nowrap" id="addHistoryBtn">
+                <i class="bi bi-plus-lg"></i><span class="ms-1">Add Record</span>
+              </button>
+            </div>
+          </div>
+          <div class="panel-body p-0">
+            <div class="table-responsive">
+              <table class="table medicines-table align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Member</th>
+                    <th>Condition</th>
+                    <th>Diagnosis date</th>
+                    <th>Allergies</th>
+                    <th class="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="historyBody"></tbody>
+              </table>
+            </div>
+            <div class="loading-state d-none" id="historyLoading">
+              <div class="spinner-border text-primary" role="status"></div>
+              <p class="mt-2 mb-0 text-muted">Loading medical history...</p>
+            </div>
+            <div class="empty-state d-none" id="historyEmpty">
+              <i class="bi bi-clipboard2-pulse"></i>
+              <h3 id="historyEmptyTitle">No medical history yet</h3>
+              <p class="mb-3" id="historyEmptyText">Record conditions, allergies and treatments for each family member.</p>
+              <button class="btn btn-primary btn-sm" id="historyEmptyAddBtn"><i class="bi bi-plus-lg me-1"></i>Add Record</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ DOCTOR VISITS VIEW ============ -->
+      <section id="view-visits" class="view d-none">
+        <div class="panel">
+          <div class="panel-header flex-wrap gap-2">
+            <h2 class="panel-title"><i class="bi bi-hospital me-2"></i>Doctor &amp; Treatment History</h2>
+            <div class="toolbar">
+              <select class="form-select form-select-sm filter-select" id="visitMemberFilter" aria-label="Filter by family member">
+                <option value="all">All family members</option>
+              </select>
+              <button class="btn btn-primary btn-sm text-nowrap" id="addVisitBtn">
+                <i class="bi bi-plus-lg"></i><span class="ms-1">Add Visit</span>
+              </button>
+            </div>
+          </div>
+          <div class="panel-body p-0">
+            <div class="table-responsive">
+              <table class="table medicines-table align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Member</th>
+                    <th>Doctor</th>
+                    <th>Hospital / clinic</th>
+                    <th>Visit date</th>
+                    <th>Follow-up</th>
+                    <th class="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="visitsBody"></tbody>
+              </table>
+            </div>
+            <div class="loading-state d-none" id="visitsLoading">
+              <div class="spinner-border text-primary" role="status"></div>
+              <p class="mt-2 mb-0 text-muted">Loading doctor visits...</p>
+            </div>
+            <div class="empty-state d-none" id="visitsEmpty">
+              <i class="bi bi-hospital"></i>
+              <h3 id="visitsEmptyTitle">No doctor visits yet</h3>
+              <p class="mb-3" id="visitsEmptyText">Track appointments, diagnoses and treatments for each family member.</p>
+              <button class="btn btn-primary btn-sm" id="visitsEmptyAddBtn"><i class="bi bi-plus-lg me-1"></i>Add Visit</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- ============ SETTINGS VIEW ============ -->
       <section id="view-settings" class="view d-none">
         <div class="row g-3 g-md-4">
@@ -623,6 +762,14 @@
                 <input type="date" class="form-control" id="expiry_date" />
                 <div class="invalid-feedback">Expiry date cannot be before the start date.</div>
               </div>
+            </div>
+
+            <div class="mt-3">
+              <label class="form-label" for="member_id">Family member</label>
+              <select class="form-select" id="member_id">
+                <option value="self">Myself</option>
+              </select>
+              <div class="form-text">Choose who this medicine is for.</div>
             </div>
 
             <div class="mt-3">
@@ -823,6 +970,256 @@
           <button type="button" class="btn btn-danger" id="confirmReminderDeleteBtn">
             <span class="spinner-border spinner-border-sm d-none" id="reminderDeleteSpinner"></span>
             <span id="reminderDeleteBtnText">Delete</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ADD / EDIT FAMILY MEMBER MODAL ============ -->
+  <div class="modal fade" id="memberModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form id="memberForm" novalidate>
+          <div class="modal-header">
+            <h5 class="modal-title" id="memberModalTitle">Add Family Member</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="memberId" />
+            <div class="mb-3">
+              <label class="form-label" for="memberName">Full name <span class="req">*</span></label>
+              <input type="text" class="form-control" id="memberName" placeholder="e.g. Jane Doe" required />
+              <div class="invalid-feedback">Please enter the member's name.</div>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="memberRelationship">Relationship</label>
+                <input type="text" class="form-control" id="memberRelationship" list="relationshipOptions" placeholder="e.g. Mother" />
+                <datalist id="relationshipOptions">
+                  <option value="Self"></option>
+                  <option value="Spouse"></option>
+                  <option value="Mother"></option>
+                  <option value="Father"></option>
+                  <option value="Son"></option>
+                  <option value="Daughter"></option>
+                  <option value="Brother"></option>
+                  <option value="Sister"></option>
+                  <option value="Grandparent"></option>
+                  <option value="Other"></option>
+                </datalist>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="memberDob">Date of birth</label>
+                <input type="date" class="form-control" id="memberDob" />
+                <div class="invalid-feedback">Date of birth cannot be in the future.</div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="memberSaveBtn">
+              <span class="spinner-border spinner-border-sm d-none" id="memberSaveSpinner"></span>
+              <span id="memberSaveBtnText">Save Member</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ DELETE FAMILY MEMBER MODAL ============ -->
+  <div class="modal fade" id="memberDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Delete family member</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-0">Are you sure you want to delete <strong id="memberDeleteName">this member</strong>? This action cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirmMemberDeleteBtn">
+            <span class="spinner-border spinner-border-sm d-none" id="memberDeleteSpinner"></span>
+            <span id="memberDeleteBtnText">Delete</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ADD / EDIT MEDICAL HISTORY MODAL ============ -->
+  <div class="modal fade" id="historyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <form id="historyForm" novalidate>
+          <div class="modal-header">
+            <h5 class="modal-title" id="historyModalTitle">Add Medical Record</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="historyId" />
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="hmMember">Family member</label>
+                <select class="form-select" id="hmMember">
+                  <option value="self">Myself</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="hmDiagnosisDate">Diagnosis date</label>
+                <input type="date" class="form-control" id="hmDiagnosisDate" />
+                <div class="invalid-feedback">Diagnosis date cannot be in the future.</div>
+              </div>
+            </div>
+            <div class="mt-3">
+              <label class="form-label" for="hmCondition">Condition <span class="req">*</span></label>
+              <input type="text" class="form-control" id="hmCondition" placeholder="e.g. Type 2 diabetes" required />
+              <div class="invalid-feedback">Please enter the condition.</div>
+            </div>
+            <div class="mt-3">
+              <label class="form-label" for="hmAllergies">Allergies</label>
+              <input type="text" class="form-control" id="hmAllergies" placeholder="e.g. Penicillin" />
+            </div>
+            <div class="mt-3">
+              <label class="form-label" for="hmExisting">Existing conditions</label>
+              <textarea class="form-control" id="hmExisting" rows="2" placeholder="e.g. Hypertension"></textarea>
+            </div>
+            <div class="mt-3">
+              <label class="form-label" for="hmTreatment">Treatment</label>
+              <textarea class="form-control" id="hmTreatment" rows="2" placeholder="Treatment details"></textarea>
+            </div>
+            <div class="mt-3">
+              <label class="form-label" for="hmNotes">Notes</label>
+              <textarea class="form-control" id="hmNotes" rows="2" placeholder="Other relevant medical information"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="historySaveBtn">
+              <span class="spinner-border spinner-border-sm d-none" id="historySaveSpinner"></span>
+              <span id="historySaveBtnText">Save Record</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ DELETE MEDICAL HISTORY MODAL ============ -->
+  <div class="modal fade" id="historyDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Delete medical record</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-0">Are you sure you want to delete the record for <strong id="historyDeleteName">this condition</strong>? This action cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirmHistoryDeleteBtn">
+            <span class="spinner-border spinner-border-sm d-none" id="historyDeleteSpinner"></span>
+            <span id="historyDeleteBtnText">Delete</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ADD / EDIT DOCTOR VISIT MODAL ============ -->
+  <div class="modal fade" id="visitModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <form id="visitForm" novalidate>
+          <div class="modal-header">
+            <h5 class="modal-title" id="visitModalTitle">Add Doctor Visit</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="visitId" />
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="vsMember">Family member</label>
+                <select class="form-select" id="vsMember">
+                  <option value="self">Myself</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="vsDoctorName">Doctor name <span class="req">*</span></label>
+                <input type="text" class="form-control" id="vsDoctorName" placeholder="e.g. Dr. Smith" required />
+                <div class="invalid-feedback">Please enter the doctor's name.</div>
+              </div>
+            </div>
+            <div class="row g-3 mt-0">
+              <div class="col-md-6">
+                <label class="form-label" for="vsSpecialization">Specialization</label>
+                <input type="text" class="form-control" id="vsSpecialization" placeholder="e.g. Cardiologist" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="vsHospital">Hospital / clinic</label>
+                <input type="text" class="form-control" id="vsHospital" placeholder="e.g. City Hospital" />
+              </div>
+            </div>
+            <div class="row g-3 mt-0">
+              <div class="col-md-6">
+                <label class="form-label" for="vsVisitDate">Appointment date</label>
+                <input type="date" class="form-control" id="vsVisitDate" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="vsFollowUp">Follow-up date</label>
+                <input type="date" class="form-control" id="vsFollowUp" />
+                <div class="invalid-feedback">Follow-up cannot be before the appointment date.</div>
+              </div>
+            </div>
+            <div class="mt-3">
+              <label class="form-label" for="vsDiagnosis">Diagnosis</label>
+              <textarea class="form-control" id="vsDiagnosis" rows="2" placeholder="Diagnosis"></textarea>
+            </div>
+            <div class="mt-3">
+              <label class="form-label" for="vsTreatment">Treatment details</label>
+              <textarea class="form-control" id="vsTreatment" rows="2" placeholder="Treatment / procedure details"></textarea>
+            </div>
+            <div class="mt-3">
+              <label class="form-label" for="vsPrescription">Prescription notes</label>
+              <textarea class="form-control" id="vsPrescription" rows="2" placeholder="Prescribed medicines / instructions"></textarea>
+            </div>
+            <div class="mt-3">
+              <label class="form-label" for="vsNotes">Additional notes</label>
+              <textarea class="form-control" id="vsNotes" rows="2" placeholder="Anything else to remember"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="visitSaveBtn">
+              <span class="spinner-border spinner-border-sm d-none" id="visitSaveSpinner"></span>
+              <span id="visitSaveBtnText">Save Visit</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ DELETE DOCTOR VISIT MODAL ============ -->
+  <div class="modal fade" id="visitDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Delete doctor visit</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-0">Are you sure you want to delete the visit to <strong id="visitDeleteName">this doctor</strong>? This action cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirmVisitDeleteBtn">
+            <span class="spinner-border spinner-border-sm d-none" id="visitDeleteSpinner"></span>
+            <span id="visitDeleteBtnText">Delete</span>
           </button>
         </div>
       </div>
