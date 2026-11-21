@@ -24,6 +24,7 @@ local JSON mode - nothing crashes.
 """
 import json
 import os
+import re
 import threading
 
 DEFAULT_PROJECT_ID = "meditrack-3a681"
@@ -41,6 +42,55 @@ _state = {
 }
 
 
+def parse_service_account_json(raw):
+    """Parse a service-account JSON blob from an environment variable.
+
+    Render (and similar hosts) often mangle the private key: the value is
+    wrapped in extra quotes, or the ``\\n`` escapes inside ``private_key``
+    are turned into real newlines, which makes ``json.loads`` fail. This
+    repairs those cases without logging any key material.
+    """
+    if not isinstance(raw, str):
+        return None
+    text = raw.strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
+        text = text[1:-1].strip()
+    candidates = [text]
+    # Double-encoded JSON (a JSON string whose contents are JSON).
+    if text.startswith('"') and text.endswith('"'):
+        try:
+            inner = json.loads(text)
+        except json.JSONDecodeError:
+            inner = None
+        if isinstance(inner, str):
+            candidates.append(inner)
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, dict):
+            return parsed
+        repaired = re.sub(
+            r'("private_key"\s*:\s*")(.+?)("\s*,)',
+            lambda match: (
+                match.group(1)
+                + match.group(2).replace("\r\n", "\\n").replace("\n", "\\n").replace("\r", "\\n")
+                + match.group(3)
+            ),
+            candidate,
+            count=1,
+            flags=re.DOTALL,
+        )
+        try:
+            parsed = json.loads(repaired)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    return None
+
+
 def _resolve_credential():
     """Return (credential, project_id, source) or (None, None, reason)."""
     try:
@@ -50,9 +100,8 @@ def _resolve_credential():
 
     raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
     if raw and raw.strip():
-        try:
-            info = json.loads(raw)
-        except json.JSONDecodeError:
+        info = parse_service_account_json(raw)
+        if not isinstance(info, dict):
             return None, None, "FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON"
         try:
             cred = fb_credentials.Certificate(info)
@@ -137,9 +186,22 @@ def get_status():
     }
 
 
+# Firebase rejects tokens when the server clock and Google's clock disagree by
+# even a second ("token used too early" / false revocation). 60 seconds is the
+# maximum the Admin SDK allows and matches Google's own recommendation.
+CLOCK_SKEW_SECONDS = 60
+
+
 def verify_id_token(token, check_revoked=True):
     """Verify a Firebase ID token. Raises when Auth is unavailable/invalid."""
     auth = _state["auth"]
     if not _state["ready"] or auth is None:
         raise RuntimeError("Firebase Auth is not available")
-    return auth.verify_id_token(token, check_revoked=check_revoked)
+    kwargs = {"check_revoked": check_revoked}
+    try:
+        import inspect
+        if "clock_skew_seconds" in inspect.signature(auth.verify_id_token).parameters:
+            kwargs["clock_skew_seconds"] = CLOCK_SKEW_SECONDS
+    except (TypeError, ValueError):
+        pass
+    return auth.verify_id_token(token, **kwargs)

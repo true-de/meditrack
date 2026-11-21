@@ -150,7 +150,7 @@ function cacheElements() {
         "name", "dosage", "frequency", "start_date", "expiry_date", "notes",
         "saveBtn", "saveSpinner", "saveBtnText",
         "deleteName", "confirmDeleteBtn", "deleteSpinner", "deleteBtnText",
-        "dtlName", "dtlStatus", "dtlDosage", "dtlFrequency", "dtlStart",
+        "dtlName", "dtlStatus", "dtlMember", "dtlDosage", "dtlFrequency", "dtlStart",
         "dtlExpiry", "dtlExpiryStatus", "dtlExpiryWarning", "dtlNotes", "dtlId", "dtlEditBtn",
         "notifState", "notifEnableBtn", "notifDisableBtn", "notifTestBtn",
         "statActiveReminders", "statDue", "statTaken", "statMissed",
@@ -372,8 +372,21 @@ async function loadMedicines(notify = false) {
 async function readError(res) {
     try {
         const data = await res.json();
-        if (data && data.details) return Object.values(data.details).join(" ");
-        if (data && data.error) return data.error;
+        if (data && data.error === "Validation failed" && data.details && typeof data.details === "object") {
+            return Object.values(data.details).join(" ");
+        }
+        if (data && data.error) {
+            if (data.details && typeof data.details === "object") {
+                const extra = Object.entries(data.details)
+                    .map(([key, value]) => (typeof value === "number"
+                        ? `${value} ${key.replace(/_/g, " ")}`
+                        : ""))
+                    .filter(Boolean)
+                    .join(", ");
+                return extra ? `${data.error} (${extra})` : data.error;
+            }
+            return data.error;
+        }
     } catch (_) { /* ignore parse errors */ }
     return `Request failed (${res.status}).`;
 }
@@ -472,6 +485,7 @@ function renderTable() {
         <span class="med-name">${escapeHtml(m.name)}</span>
         ${m.notes ? `<span class="med-notes">${escapeHtml(m.notes)}</span>` : ""}
       </td>
+      <td>${escapeHtml(memberLabel(m.member_id || "self"))}</td>
       <td>${escapeHtml(m.dosage || "—")}</td>
       <td>${escapeHtml(m.frequency || "—")}</td>
       <td>${m.expiry_date ? formatDate(m.expiry_date) : "—"}</td>
@@ -540,6 +554,8 @@ function openEditModal(id) {
     els.expiry_date.value = med.expiry_date || "";
     els.notes.value = med.notes || "";
 
+    fillMemberSelects();
+    els.member_id.value = med.member_id || "self";
     els.medicineModalTitle.textContent = "Edit Medicine";
     els.saveBtnText.textContent = "Update Medicine";
     medicineModal.show();
@@ -554,6 +570,7 @@ function openDetails(id) {
 
     detailsEditId = id;
     els.dtlName.textContent = med.name || "—";
+    if (els.dtlMember) els.dtlMember.textContent = memberLabel(med.member_id || "self");
 
     const status = expiryStatus(med);
     els.dtlStatus.innerHTML = `${statusPill(status)}<span class="text-muted small">${statusHint(med)}</span>`;
@@ -604,6 +621,7 @@ async function handleSubmit(e) {
         start_date: els.start_date.value,
         expiry_date: els.expiry_date.value,
         notes: els.notes.value.trim(),
+        member_id: els.member_id.value || "self",
     };
 
     setSaving(true);
@@ -682,9 +700,22 @@ function showView(name) {
         link.classList.toggle("active", link.dataset.view === name);
     });
 
-    const titles = { dashboard: "Dashboard", medicines: "Medicines", expiry: "Expiry Tracking", reminders: "Reminders", settings: "Settings" };
+    const titles = {
+        dashboard: "Dashboard",
+        medicines: "Medicines",
+        family: "Family",
+        history: "Medical History",
+        visits: "Doctor Visits",
+        expiry: "Expiry Tracking",
+        reminders: "Reminders",
+        settings: "Settings",
+    };
     els.pageTitle.textContent = titles[name] || "MediTrack";
 
+    if (name === "medicines") renderTable();
+    if (name === "family") renderFamily();
+    if (name === "history") renderHistories();
+    if (name === "visits") renderVisits();
     if (name === "expiry") loadExpiry();
     if (name === "reminders") {
         updateNotifUI();
@@ -776,13 +807,16 @@ function getFilteredMedicines() {
     const query = els.searchInput.value.trim().toLowerCase();
     const filter = els.statusFilter.value;
 
+    const member = els.memberFilter ? els.memberFilter.value : "all";
     const filtered = medicines.filter((m) => {
         const matchesQuery = !query
             || (m.name || "").toLowerCase().includes(query)
             || (m.dosage || "").toLowerCase().includes(query)
-            || (m.frequency || "").toLowerCase().includes(query);
+            || (m.frequency || "").toLowerCase().includes(query)
+            || memberLabel(m.member_id || "self").toLowerCase().includes(query);
         const matchesFilter = filter === "all" || getStatus(m) === filter;
-        return matchesQuery && matchesFilter;
+        const matchesMember = !member || member === "all" || (m.member_id || "self") === member;
+        return matchesQuery && matchesFilter && matchesMember;
     });
 
     return sortMedicines(filtered);

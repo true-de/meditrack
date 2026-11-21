@@ -23,6 +23,7 @@
     let ready = false;            // true once the SDK is initialised
     let lastUid = undefined;      // used to react only to real sign in/out changes
     let refreshInFlight = null;   // single in-flight forced-refresh promise (de-dupes)
+    let signingOut = false;       // one logout even if several requests fail together
 
     const $ = (id) => document.getElementById(id);
 
@@ -151,10 +152,35 @@
     }
 
     async function signOut() {
-        if (!auth) return;
+        if (!auth || signingOut) return;
+        signingOut = true;
         try {
             await auth.signOut();
         } catch (_) { /* ignore */ }
+        finally {
+            signingOut = false;
+        }
+    }
+
+    // End the Firebase session only when the server says THIS token is expired
+    // or revoked. A project mismatch (token_invalid) is a server configuration
+    // fault — signing out would only show "session expired" on the next login.
+    function shouldEndSession(payload) {
+        const code = payload && payload.code;
+        if (code === "token_expired" || code === "token_revoked" || code === "user_disabled") {
+            return true;
+        }
+        if (code) return false;
+        const msg = String((payload && payload.error) || "").toLowerCase();
+        return msg.includes("expired") || msg.includes("revoked") || msg.includes("disabled");
+    }
+
+    async function readJson(res) {
+        try {
+            return await res.clone().json();
+        } catch (_) {
+            return {};
+        }
     }
 
     /* ------------------------------------------------------------
@@ -240,7 +266,8 @@
         if (res.status >= 500) return res;
 
         if (res.status === 401) {
-            // Token may have expired or been revoked: refresh once and retry.
+            const first = await readJson(res);
+            // Token may have expired: refresh once and retry with the new token.
             const fresh = await refreshToken();
             if (fresh) {
                 headers.set("Authorization", "Bearer " + fresh);
@@ -256,6 +283,7 @@
 
             if (res.status === 401) {
                 const server = await serverCanVerify();
+                const body = fresh ? await readJson(res) : first;
                 if (!server.reachable || !server.canVerify) {
                     // The fault is on the server/network, not the user's session.
                     const err = new Error(server.reachable
@@ -264,10 +292,15 @@
                     err.code = server.reachable ? "auth/server-unavailable" : "auth/network-error";
                     throw err;
                 }
-                // Genuinely invalid session: sign out and tell the user.
-                await signOut();
-                const err = new Error("Your session has expired. Please sign in again.");
-                err.code = "auth/session-expired";
+                if (shouldEndSession(body)) {
+                    await signOut();
+                    const err = new Error("Your session has expired. Please sign in again.");
+                    err.code = "auth/session-expired";
+                    throw err;
+                }
+                const err = new Error(body.error
+                    || "The server rejected this sign-in. Your Firebase session is still active — try again shortly.");
+                err.code = body.code || "auth/rejected";
                 throw err;
             }
         }
@@ -391,8 +424,11 @@
         if (user) {
             showApp();
             updateUserUI(user);
-            if (changed && window.MediTrack && typeof window.MediTrack.onSignedIn === "function") {
-                window.MediTrack.onSignedIn(user);
+            if (changed) {
+                syncProfile(user);
+                if (window.MediTrack && typeof window.MediTrack.onSignedIn === "function") {
+                    window.MediTrack.onSignedIn(user);
+                }
             }
         } else {
             showAuthScreen();
@@ -456,7 +492,15 @@
         }
 
         ready = true;
-        auth.onAuthStateChanged(handleAuthState);
+        // LOCAL persistence keeps the session across reloads. Set it before the
+        // first listener so a refresh restores the same Firebase user.
+        const persistence = firebase.auth.Auth.Persistence.LOCAL;
+        const listen = () => auth.onAuthStateChanged(handleAuthState);
+        if (typeof auth.setPersistence === "function") {
+            auth.setPersistence(persistence).then(listen).catch(listen);
+        } else {
+            listen();
+        }
     }
 
     window.MediTrackAuth = {

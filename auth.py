@@ -68,20 +68,31 @@ def _log():
 
 
 def _classify_verification_error(exc):
-    """Map a token-verification exception to (http_status, public_message)."""
+    """Map a token-verification exception to (status, message, code).
+
+    ``code`` lets the browser sign the user out only for a token that is
+    actually expired or revoked. A project mismatch ("invalid") is a server
+    configuration problem and must not clear a valid Firebase session.
+    """
     name = type(exc).__name__
-    if name in _CLIENT_TOKEN_ERRORS:
-        return 401, _CLIENT_TOKEN_ERRORS[name]
+    if name == "ExpiredIdTokenError":
+        return 401, _CLIENT_TOKEN_ERRORS[name], "token_expired"
+    if name == "RevokedIdTokenError":
+        return 401, _CLIENT_TOKEN_ERRORS[name], "token_revoked"
+    if name == "InvalidIdTokenError":
+        return 401, _CLIENT_TOKEN_ERRORS[name], "token_invalid"
+    if name == "UserDisabledError":
+        return 401, _CLIENT_TOKEN_ERRORS[name], "user_disabled"
     if name in _SERVER_VERIFY_ERRORS:
-        return 503, "Authentication service temporarily unavailable"
+        return 503, "Authentication service temporarily unavailable", "auth_unavailable"
     if isinstance(exc, ValueError):
         # e.g. 'incorrect "aud" claim' -> the token was not issued for the
         # project this server is configured for (usually a config mismatch).
-        return 401, "Invalid authentication token"
+        return 401, "Invalid authentication token", "token_invalid"
     if isinstance(exc, RuntimeError):
         # firebase_config raises RuntimeError when Auth is not initialised.
-        return 503, "Authentication service unavailable"
-    return 503, "Authentication service temporarily unavailable"
+        return 503, "Authentication service unavailable", "auth_unavailable"
+    return 503, "Authentication service temporarily unavailable", "auth_unavailable"
 
 
 def auth_is_enforced():
@@ -121,28 +132,31 @@ def require_auth(view):
                 "are configured correctly.",
                 status.get("source"), status.get("project_id"), status.get("error"),
             )
-            return jsonify({"error": "Authentication service is not configured on the server"}), 503
+            return jsonify({
+                "error": "Authentication service is not configured on the server",
+                "code": "auth_unavailable",
+            }), 503
 
         token = _bearer_token()
         if not token:
-            return jsonify({"error": "Authentication required"}), 401
+            return jsonify({"error": "Authentication required", "code": "auth_required"}), 401
 
         try:
             decoded = firebase_config.verify_id_token(token)
         except Exception as exc:  # noqa: BLE001 - classified just below
-            code, message = _classify_verification_error(exc)
+            status, message, reason = _classify_verification_error(exc)
             # Log the failure class/reason only - never the token or credentials.
             _log().warning(
                 "ID token verification failed: %s (%s) path=%s -> %s: %s",
-                type(exc).__name__, message, request.path, code, str(exc)[:300],
+                type(exc).__name__, reason, request.path, status, str(exc)[:300],
             )
-            return jsonify({"error": message}), code
+            return jsonify({"error": message, "code": reason}), status
 
         if not isinstance(decoded, dict):
-            return jsonify({"error": "Invalid authentication token"}), 401
+            return jsonify({"error": "Invalid authentication token", "code": "token_invalid"}), 401
         uid = decoded.get("uid") or decoded.get("user_id")
         if not uid:
-            return jsonify({"error": "Invalid authentication token"}), 401
+            return jsonify({"error": "Invalid authentication token", "code": "token_invalid"}), 401
 
         g.owner = uid
         g.uid = uid

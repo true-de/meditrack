@@ -19,6 +19,12 @@ app = Flask(__name__)
 app.json.sort_keys = False
 # Return generic JSON error responses instead of exposing stack traces
 app.config["PROPAGATE_EXCEPTIONS"] = False
+# Reject oversized bodies before they are parsed (medical notes stay small).
+app.config["MAX_CONTENT_LENGTH"] = 256 * 1024
+
+# Text limits applied on write. Reads of older records are not truncated.
+MAX_SHORT = 200
+MAX_LONG = 4000
 
 # Session signing key. In production (Render) set SECRET_KEY to a strong random
 # value. Local development falls back to an ephemeral key so no secret is ever
@@ -39,14 +45,33 @@ OPTIONAL_FIELDS = ["start_date", "expiry_date", "notes"]
 # Backend selection: Firebase Firestore when configured, JSON otherwise.
 # The JSON files are never deleted or rewritten by this switch.
 # ---------------------------------------------------------------
+# MEDITRACK_STORAGE=json forces the local JSON fallback even when Firebase
+# credentials are present (used by the test suite so it never writes to the
+# live project). "firestore" requires a successful Admin SDK init.
 firebase_config.init_firebase()
-if firebase_config.is_ready():
+_storage_choice = os.environ.get("MEDITRACK_STORAGE", "").strip().lower()
+if _storage_choice != "json" and firebase_config.is_ready():
     set_storage(FirestoreStorage(firebase_config.get_db()))
     app.logger.info("Storage backend: Firestore (project %s)", firebase_config.get_project_id())
 else:
+    if _storage_choice == "firestore":
+        app.logger.error(
+            "MEDITRACK_STORAGE=firestore but Firebase Admin is not ready (%s). Using JSON files.",
+            firebase_config.get_status().get("error"),
+        )
     os.makedirs(DATA_DIR, exist_ok=True)
     set_storage(JsonStorage(DATA_DIR))
-    app.logger.info("Storage backend: JSON files (%s)", firebase_config.get_status().get("error"))
+    app.logger.info(
+        "Storage backend: JSON files (%s)",
+        "MEDITRACK_STORAGE=json" if _storage_choice == "json" else firebase_config.get_status().get("error"),
+    )
+
+
+def _limit_text(value, field, limit, errors, cleaned):
+    if len(value) > limit:
+        errors[field] = "'{}' must be at most {} characters".format(field, limit)
+    else:
+        cleaned[field] = value
 
 
 # Validate a date string in YYYY-MM-DD format
@@ -92,7 +117,7 @@ def validate_medicine(data):
         if not isinstance(value, str) or not value.strip():
             errors[field] = "'{}' is required and cannot be empty".format(field)
         else:
-            cleaned[field] = value.strip()
+            _limit_text(value.strip(), field, MAX_SHORT, errors, cleaned)
 
     # Optional fields
     for field in OPTIONAL_FIELDS:
@@ -109,7 +134,8 @@ def validate_medicine(data):
         if field in ("start_date", "expiry_date") and value and not is_valid_date(value):
             errors[field] = "'{}' must be a valid date (YYYY-MM-DD)".format(field)
         else:
-            cleaned[field] = value
+            limit = MAX_LONG if field == "notes" else MAX_SHORT
+            _limit_text(value, field, limit, errors, cleaned)
 
     # Cross-field rule: expiry date cannot be earlier than the start date
     start_date = cleaned.get("start_date")
@@ -310,7 +336,7 @@ def validate_reminder(data):
         if not isinstance(value, str) or not value.strip():
             errors[field] = "'{}' is required and cannot be empty".format(field)
         else:
-            cleaned[field] = value.strip()
+            _limit_text(value.strip(), field, MAX_SHORT, errors, cleaned)
 
     # Frequency must be one of the supported options
     frequency = data.get("frequency")
@@ -372,6 +398,26 @@ def validate_reminder(data):
     return cleaned, None
 
 
+def _owned_medicine(owner, medicine_id):
+    """Return the caller's medicine, or None when it does not exist for them."""
+    try:
+        return get_storage().get_medicine(owner, medicine_id)
+    except NotFound:
+        return None
+
+
+def _duplicate_reminder(owner, medicine_id, times, exclude_id=None):
+    """True when this user already has a reminder for the same medicine and times."""
+    signature = (medicine_id, tuple(sorted(times or [])))
+    for reminder in get_storage().list_reminders(owner):
+        if exclude_id and reminder.get("id") == exclude_id:
+            continue
+        existing = (reminder.get("medicine_id"), tuple(sorted(reminder.get("times") or [])))
+        if existing == signature:
+            return True
+    return False
+
+
 @app.route("/api/reminders", methods=["GET"])
 @require_auth
 def get_reminders():
@@ -387,10 +433,21 @@ def add_reminder():
     if error:
         return jsonify(error), 400
 
+    medicine = _owned_medicine(g.owner, cleaned["medicine_id"])
+    if medicine is None:
+        return jsonify({"error": "Validation failed",
+                        "details": {"medicine_id": "Unknown medicine"}}), 400
+    if _duplicate_reminder(g.owner, cleaned["medicine_id"], cleaned["times"]):
+        return jsonify({
+            "error": "A reminder with the same medicine and times already exists.",
+            "code": "duplicate_reminder",
+        }), 409
+
     new_reminder = {
         "id": str(uuid.uuid4()),
+        "member_id": medicine.get("member_id") or DEFAULT_MEMBER_ID,
         "medicine_id": cleaned["medicine_id"],
-        "medicine_name": cleaned["medicine_name"],
+        "medicine_name": medicine.get("name") or cleaned["medicine_name"],
         "dosage": cleaned["dosage"],
         "frequency": cleaned["frequency"],
         "times": cleaned["times"],
@@ -423,9 +480,20 @@ def update_reminder(reminder_id):
     if error:
         return jsonify(error), 400
 
+    medicine = _owned_medicine(g.owner, cleaned["medicine_id"])
+    if medicine is None:
+        return jsonify({"error": "Validation failed",
+                        "details": {"medicine_id": "Unknown medicine"}}), 400
+    if _duplicate_reminder(g.owner, cleaned["medicine_id"], cleaned["times"], exclude_id=reminder_id):
+        return jsonify({
+            "error": "A reminder with the same medicine and times already exists.",
+            "code": "duplicate_reminder",
+        }), 409
+
     changes = {
+        "member_id": medicine.get("member_id") or DEFAULT_MEMBER_ID,
         "medicine_id": cleaned["medicine_id"],
-        "medicine_name": cleaned["medicine_name"],
+        "medicine_name": medicine.get("name") or cleaned["medicine_name"],
         "dosage": cleaned["dosage"],
         "frequency": cleaned["frequency"],
         "times": cleaned["times"],
@@ -602,7 +670,7 @@ def validate_family_member(data):
     if not isinstance(name, str) or not name.strip():
         errors["name"] = "'name' is required and cannot be empty"
     else:
-        cleaned["name"] = name.strip()
+        _limit_text(name.strip(), "name", MAX_SHORT, errors, cleaned)
 
     relationship = data.get("relationship")
     if relationship in (None, ""):
@@ -610,7 +678,7 @@ def validate_family_member(data):
     elif not isinstance(relationship, str):
         errors["relationship"] = "'relationship' must be text"
     else:
-        cleaned["relationship"] = relationship.strip()
+        _limit_text(relationship.strip(), "relationship", MAX_SHORT, errors, cleaned)
 
     dob = data.get("date_of_birth")
     if dob in (None, ""):
@@ -711,7 +779,7 @@ def _clean_optional_text(data, fields, errors, cleaned):
         elif not isinstance(value, str):
             errors[field] = "'{}' must be text".format(field)
         else:
-            cleaned[field] = value.strip()
+            _limit_text(value.strip(), field, MAX_LONG, errors, cleaned)
 
 
 def _clean_optional_date(data, field, errors, cleaned, allow_future=False):
@@ -740,7 +808,7 @@ def validate_history(data):
     if not isinstance(condition, str) or not condition.strip():
         errors["condition"] = "'condition' is required and cannot be empty"
     else:
-        cleaned["condition"] = condition.strip()
+        _limit_text(condition.strip(), "condition", MAX_SHORT, errors, cleaned)
 
     _clean_optional_text(data, MEDICAL_TEXT_FIELDS, errors, cleaned)
     _clean_optional_date(data, "diagnosis_date", errors, cleaned)
@@ -848,7 +916,7 @@ def validate_visit(data):
     if not isinstance(doctor_name, str) or not doctor_name.strip():
         errors["doctor_name"] = "'doctor_name' is required and cannot be empty"
     else:
-        cleaned["doctor_name"] = doctor_name.strip()
+        _limit_text(doctor_name.strip(), "doctor_name", MAX_SHORT, errors, cleaned)
 
     _clean_optional_text(data, VISIT_TEXT_FIELDS, errors, cleaned)
     # Appointment / follow-up dates may legitimately be in the future.
@@ -949,6 +1017,40 @@ def delete_doctor_visit(visit_id):
 
 
 # ---------------------------------------------------------------
+# Security headers
+# ---------------------------------------------------------------
+# Bearer tokens are not cookies, so cross-site form posts cannot authenticate.
+# These headers still stop framing, MIME sniffing, and unexpected script hosts.
+_CSP = "; ".join([
+    "default-src 'self'",
+    "script-src 'self' https://cdn.jsdelivr.net https://www.gstatic.com https://www.google.com https://apis.google.com",
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net",
+    "img-src 'self' data:",
+    "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com "
+    "https://www.googleapis.com https://firebase.googleapis.com https://firebaseinstallations.googleapis.com "
+    "https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com",
+    "frame-src https://*.firebaseapp.com https://*.google.com https://www.google.com",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+])
+
+
+@app.after_request
+def _security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = _CSP
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if request.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+# ---------------------------------------------------------------
 # Error handlers
 # ---------------------------------------------------------------
 # Storage-layer errors (owned records) -> precise status codes
@@ -977,6 +1079,11 @@ def not_found(_error):
 @app.errorhandler(405)
 def method_not_allowed(_error):
     return jsonify({"error": "Method not allowed"}), 405
+
+
+@app.errorhandler(413)
+def request_too_large(_error):
+    return jsonify({"error": "Request is too large"}), 413
 
 
 @app.errorhandler(500)

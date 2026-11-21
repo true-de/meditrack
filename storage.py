@@ -148,7 +148,7 @@ class JsonStorage:
     def get_medicine(self, owner, medicine_id):
         for medicine in self._load(self.data_file):
             if medicine.get("id") == medicine_id:
-                return medicine
+                return dict(medicine, member_id=medicine.get("member_id") or DEFAULT_MEMBER_ID)
         raise NotFound("Medicine not found")
 
     def create_medicine(self, owner, medicine):
