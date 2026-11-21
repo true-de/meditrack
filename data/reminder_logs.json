@@ -1,0 +1,46 @@
+[
+    {
+        "id": "0144fcff-67bb-4d5a-9a50-d244da443a89",
+        "reminder_id": "52a44b9b-ffc7-4dff-9014-6886be74b706",
+        "medicine_id": "5df95698-08f8-4e38-8245-e896c2167548",
+        "medicine_name": "Paracetamol",
+        "dosage": "650 mg",
+        "date": "2026-11-21",
+        "time": "12:08",
+        "status": "taken",
+        "recorded_at": "2026-11-21T12:07:50"
+    },
+    {
+        "id": "34e23aea-a914-4761-a733-bc66c77577c3",
+        "reminder_id": "52a44b9b-ffc7-4dff-9014-6886be74b706",
+        "medicine_id": "5df95698-08f8-4e38-8245-e896c2167548",
+        "medicine_name": "Paracetamol",
+        "dosage": "650 mg",
+        "date": "2026-11-21",
+        "time": "12:09",
+        "status": "taken",
+        "recorded_at": "2026-11-21T12:07:52"
+    },
+    {
+        "id": "bf4e4acb-203d-4181-a17b-1e2a6ba656c1",
+        "reminder_id": "52a44b9b-ffc7-4dff-9014-6886be74b706",
+        "medicine_id": "5df95698-08f8-4e38-8245-e896c2167548",
+        "medicine_name": "Paracetamol",
+        "dosage": "650 mg",
+        "date": "2026-11-21",
+        "time": "12:07",
+        "status": "missed",
+        "recorded_at": "2026-11-21T12:08:22"
+    },
+    {
+        "id": "f42d5639-3a33-4782-9c26-1e9133a77772",
+        "reminder_id": "52a44b9b-ffc7-4dff-9014-6886be74b706",
+        "medicine_id": "5df95698-08f8-4e38-8245-e896c2167548",
+        "medicine_name": "Paracetamol",
+        "dosage": "650 mg",
+        "date": "2026-11-21",
+        "time": "12:10",
+        "status": "missed",
+        "recorded_at": "2026-11-21T12:08:24"
+    }
+]

@@ -1,0 +1,29 @@
+[
+    {
+        "id": "5df95698-08f8-4e38-8245-e896c2167548",
+        "name": "Paracetamol",
+        "dosage": "650 mg",
+        "frequency": "Twice daily",
+        "start_date": "",
+        "expiry_date": "2026-11-02",
+        "notes": ""
+    },
+    {
+        "id": "c7a2d3b5-2e4f-4b6c-9d8e-0f1a2b3c4d5e",
+        "name": "Amoxicillin",
+        "dosage": "250 mg",
+        "frequency": "Three times a day",
+        "start_date": "2026-10-15",
+        "expiry_date": "2026-12-05",
+        "notes": "Complete the full course even if you feel better."
+    },
+    {
+        "id": "d8b3e4c6-3f5a-4c7d-ae9f-1a2b3c4d5e6f",
+        "name": "Ibuprofen",
+        "dosage": "200 mg",
+        "frequency": "Once a day",
+        "start_date": "2026-11-01",
+        "expiry_date": "2026-12-31",
+        "notes": "Take with food to avoid stomach upset."
+    }
+]

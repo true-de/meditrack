@@ -1,16 +1,41 @@
-# Firebase
+# ---------------------------------------------------------------
+# Firebase / Google service-account credentials  (NEVER commit)
+# ---------------------------------------------------------------
+*serviceAccount*.json
+serviceAccountKey.json
+firebase-service-account*.json
+gcloud-service-account*.json
+*.serviceaccount.json
+secrets/
+.env
+.env.*
+!.env.example
+
+# Firebase CLI artifacts
 .firebase/
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+.firebaserc
 
-# Node (only used for the Firebase CLI)
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# Temp / local artifacts
+*.tmp
+*.corrupt-*
+data/*.tmp
+data/*.corrupt-*
+.DS_Store
+Thumbs.db
+
+# Node (Firebase CLI only)
 node_modules/
 npm-debug.log*
 yarn-error.log*
-
-# Secrets / environment files — never commit these
-.env
-.env.*
-*.local
-serviceAccountKey.json

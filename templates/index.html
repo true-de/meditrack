@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MediTrack – Smart Medicine Management System</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+
+  <!-- ============ AUTH BOOT (checking existing session) ============ -->
+  <div class="auth-boot" id="authBoot">
+    <div class="spinner-border text-primary" role="status"></div>
+    <p class="mt-3 text-muted mb-0">Checking your session…</p>
+  </div>
+
+  <!-- ============ AUTH SCREEN (unauthenticated) ============ -->
+  <div class="auth-screen d-none" id="authScreen">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <span class="brand-icon"><i class="bi bi-heart-pulse-fill"></i></span>
+        <span class="brand-text">Medi<strong>Track</strong></span>
+      </div>
+      <p class="auth-tagline">Smart medicine management, secured by Firebase Authentication.</p>
+
+      <ul class="nav nav-pills auth-tabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" type="button" id="tabLoginBtn">Sign in</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" type="button" id="tabRegisterBtn">Create account</button>
+        </li>
+      </ul>
+
+      <div class="alert alert-danger d-none" role="alert" id="authError"></div>
+      <div class="alert alert-warning d-none" role="alert" id="authConfigWarning"></div>
+
+      <!-- Login -->
+      <form class="auth-form" id="loginForm" novalidate>
+        <div class="mb-3">
+          <label class="form-label" for="loginEmail">Email</label>
+          <input type="email" class="form-control" id="loginEmail" autocomplete="username" placeholder="you@example.com" required />
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="loginPassword">Password</label>
+          <div class="input-group">
+            <input type="password" class="form-control" id="loginPassword" autocomplete="current-password" placeholder="Your password" required />
+            <button class="btn btn-outline-secondary" type="button" data-toggle-password="loginPassword" aria-label="Show password">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100" id="loginBtn">
+          <span class="spinner-border spinner-border-sm d-none" id="loginSpinner"></span>
+          <span id="loginBtnText">Sign in</span>
+        </button>
+      </form>
+
+      <!-- Registration -->
+      <form class="auth-form d-none" id="registerForm" novalidate>
+        <div class="mb-3">
+          <label class="form-label" for="registerEmail">Email</label>
+          <input type="email" class="form-control" id="registerEmail" autocomplete="username" placeholder="you@example.com" required />
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="registerPassword">Password</label>
+          <div class="input-group">
+            <input type="password" class="form-control" id="registerPassword" autocomplete="new-password" placeholder="At least 6 characters" required />
+            <button class="btn btn-outline-secondary" type="button" data-toggle-password="registerPassword" aria-label="Show password">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="registerConfirm">Confirm password</label>
+          <div class="input-group">
+            <input type="password" class="form-control" id="registerConfirm" autocomplete="new-password" placeholder="Re-enter your password" required />
+            <button class="btn btn-outline-secondary" type="button" data-toggle-password="registerConfirm" aria-label="Show password">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100" id="registerBtn">
+          <span class="spinner-border spinner-border-sm d-none" id="registerSpinner"></span>
+          <span id="registerBtnText">Create account</span>
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        <span class="text-muted small"><i class="bi bi-shield-lock me-1"></i>Protected by Firebase Authentication</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ APP SHELL (authenticated) ============ -->
+  <div id="appRoot" class="d-none">
+
+  <!-- Mobile sidebar backdrop -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-icon"><i class="bi bi-heart-pulse-fill"></i></span>
+      <span class="brand-text">Medi<strong>Track</strong></span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#" class="side-link active" data-view="dashboard">
+        <i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span>
+      </a>
+      <a href="#" class="side-link" data-view="medicines">
+        <i class="bi bi-capsule"></i><span>Medicines</span>
+      </a>
+      <a href="#" class="side-link" data-view="expiry">
+        <i class="bi bi-calendar-x"></i><span>Expiry Tracking</span>
+      </a>
+      <a href="#" class="side-link" data-view="reminders">
+        <i class="bi bi-alarm"></i><span>Reminders</span>
+      </a>
+      <a href="#" class="side-link" id="navAddMedicine">
+        <i class="bi bi-plus-circle"></i><span>Add Medicine</span>
+      </a>
+      <a href="#" class="side-link" data-view="settings">
+        <i class="bi bi-gear"></i><span>Settings</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <span class="badge rounded-pill status-badge"><i class="bi bi-circle-fill me-1"></i>Backend connected</span>
+      <div class="small mt-2">MediTrack v1.0</div>
+    </div>
+  </aside>
+
+  <!-- Main area -->
+  <div class="main-wrapper">
+    <header class="topbar">
+      <button class="btn btn-icon d-lg-none" id="sidebarToggle" aria-label="Toggle navigation">
+        <i class="bi bi-list"></i>
+      </button>
+      <h1 class="page-title" id="pageTitle">Dashboard</h1>
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="userMenuBtn" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-person-circle me-1"></i><span class="d-none d-sm-inline" id="userEmail">Account</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenuBtn">
+            <li><span class="dropdown-item-text small text-muted" id="userEmailFull">—</span></li>
+            <li><hr class="dropdown-divider" /></li>
+            <li>
+              <button class="dropdown-item" type="button" data-action="logout">
+                <i class="bi bi-box-arrow-right me-2"></i>Sign out
+              </button>
+            </li>
+          </ul>
+        </div>
+        <button class="btn btn-outline-primary btn-sm d-none d-sm-inline-flex" id="refreshBtn">
+          <i class="bi bi-arrow-clockwise"></i><span class="ms-1">Refresh</span>
+        </button>
+        <button class="btn btn-primary btn-sm" id="topAddBtn">
+          <i class="bi bi-plus-lg"></i><span class="ms-1 d-none d-sm-inline">Add Medicine</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <!-- ============ DASHBOARD VIEW ============ -->
+      <section id="view-dashboard" class="view">
+        <div class="row g-3 g-md-4">
+          <div class="col-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon icon-blue"><i class="bi bi-collection-fill"></i></div>
+              <div>
+                <div class="stat-value" id="statTotal">0</div>
+                <div class="stat-label">Total Medicines</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon icon-green"><i class="bi bi-check-circle-fill"></i></div>
+              <div>
+                <div class="stat-value" id="statActive">0</div>
+                <div class="stat-label">Active Medicines</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon icon-amber"><i class="bi bi-exclamation-triangle-fill"></i></div>
+              <div>
+                <div class="stat-value" id="statExpiring">0</div>
+                <div class="stat-label">Expiring (30 days)</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon icon-red"><i class="bi bi-x-circle-fill"></i></div>
+              <div>
+                <div class="stat-value" id="statExpired">0</div>
+                <div class="stat-label">Expired</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 g-md-4 mt-0">
+          <div class="col-lg-7">
+            <div class="panel h-100">
+              <div class="panel-header">
+                <h2 class="panel-title"><i class="bi bi-bar-chart-fill me-2"></i>Medicine Inventory Overview</h2>
+              </div>
+              <div class="panel-body">
+                <div class="inventory-row">
+                  <div class="inv-label"><span class="dot dot-green"></span> Active</div>
+                  <div class="progress flex-grow-1"><div class="progress-bar bg-success" id="invActiveBar" style="width:0%"></div></div>
+                  <div class="inv-count"><span id="invActiveCount">0</span> <span class="text-muted" id="invActivePct">(0%)</span></div>
+                </div>
+                <div class="inventory-row">
+                  <div class="inv-label"><span class="dot dot-amber"></span> Expiring</div>
+                  <div class="progress flex-grow-1"><div class="progress-bar bg-warning" id="invExpiringBar" style="width:0%"></div></div>
+                  <div class="inv-count"><span id="invExpiringCount">0</span> <span class="text-muted" id="invExpiringPct">(0%)</span></div>
+                </div>
+                <div class="inventory-row">
+                  <div class="inv-label"><span class="dot dot-red"></span> Expired</div>
+                  <div class="progress flex-grow-1"><div class="progress-bar bg-danger" id="invExpiredBar" style="width:0%"></div></div>
+                  <div class="inv-count"><span id="invExpiredCount">0</span> <span class="text-muted" id="invExpiredPct">(0%)</span></div>
+                </div>
+                <p class="text-muted small mb-0 mt-3" id="inventorySummary">No medicines recorded yet.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-5">
+            <div class="panel h-100">
+              <div class="panel-header">
+                <h2 class="panel-title"><i class="bi bi-hourglass-split me-2"></i>Upcoming Expiries</h2>
+              </div>
+              <div class="panel-body">
+                <ul class="upcoming-list" id="upcomingList"></ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ MEDICINES VIEW ============ -->
+      <section id="view-medicines" class="view d-none">
+        <div class="panel">
+          <div class="panel-header flex-wrap gap-2">
+            <h2 class="panel-title"><i class="bi bi-capsule me-2"></i>Medicine Inventory</h2>
+            <div class="toolbar">
+              <div class="input-group input-group-sm search-box">
+                <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                <input type="search" class="form-control" id="searchInput" placeholder="Search by medicine name..." />
+              </div>
+              <select class="form-select form-select-sm filter-select" id="statusFilter">
+                <option value="all">All statuses</option>
+                <option value="active">Active</option>
+                <option value="expiring">Expiring soon</option>
+                <option value="expired">Expired</option>
+              </select>
+              <select class="form-select form-select-sm filter-select" id="sortSelect" aria-label="Sort medicines">
+                <option value="default">Sort: Recently added</option>
+                <option value="name_asc">Sort: Name (A–Z)</option>
+                <option value="name_desc">Sort: Name (Z–A)</option>
+                <option value="expiry_asc">Sort: Expiry (soonest)</option>
+                <option value="expiry_desc">Sort: Expiry (latest)</option>
+              </select>
+              <button class="btn btn-primary btn-sm text-nowrap" id="toolbarAddBtn">
+                <i class="bi bi-plus-lg"></i><span class="ms-1">Add</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="panel-body p-0">
+            <div class="table-responsive">
+              <table class="table medicines-table align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Medicine</th>
+                    <th>Dosage</th>
+                    <th>Frequency</th>
+                    <th>Expiry Date</th>
+                    <th>Status</th>
+                    <th class="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="medicinesBody"></tbody>
+              </table>
+            </div>
+
+            <div class="loading-state d-none" id="tableLoading">
+              <div class="spinner-border text-primary" role="status"></div>
+              <p class="mt-2 mb-0 text-muted">Loading medicines...</p>
+            </div>
+
+            <div class="empty-state d-none" id="tableEmpty">
+              <i class="bi bi-inboxes"></i>
+              <h3 id="emptyTitle">No medicines yet</h3>
+              <p class="mb-3" id="emptyText">Start by adding your first medicine to the inventory.</p>
+              <button class="btn btn-primary btn-sm" id="emptyAddBtn"><i class="bi bi-plus-lg me-1"></i>Add Medicine</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ EXPIRY TRACKING VIEW ============ -->
+      <section id="view-expiry" class="view d-none">
+        <!-- Expiry alerts (separate from dosage reminders) -->
+        <div class="panel mb-3 mb-md-4">
+          <div class="panel-header">
+            <h2 class="panel-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Expiry Alerts</h2>
+            <span class="text-muted small" id="expiryAlertsCount"></span>
+          </div>
+          <div class="panel-body">
+            <ul class="expiry-alert-list" id="expiryAlertList"></ul>
+          </div>
+        </div>
+
+        <div class="row g-3 g-md-4">
+          <div class="col-6 col-xl">
+            <div class="stat-card">
+              <div class="stat-icon icon-blue"><i class="bi bi-collection-fill"></i></div>
+              <div>
+                <div class="stat-value" id="expiryStatTotal">0</div>
+                <div class="stat-label">Total Medicines</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl">
+            <div class="stat-card">
+              <div class="stat-icon icon-red"><i class="bi bi-x-circle-fill"></i></div>
+              <div>
+                <div class="stat-value" id="expiryStatExpired">0</div>
+                <div class="stat-label">Expired</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl">
+            <div class="stat-card">
+              <div class="stat-icon icon-amber"><i class="bi bi-exclamation-triangle-fill"></i></div>
+              <div>
+                <div class="stat-value" id="expiryStat7">0</div>
+                <div class="stat-label">Expiring in 7 days</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl">
+            <div class="stat-card">
+              <div class="stat-icon icon-amber"><i class="bi bi-hourglass-split"></i></div>
+              <div>
+                <div class="stat-value" id="expiryStat30">0</div>
+                <div class="stat-label">Expiring in 30 days</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl">
+            <div class="stat-card">
+              <div class="stat-icon icon-green"><i class="bi bi-check-circle-fill"></i></div>
+              <div>
+                <div class="stat-value" id="expiryStatActive">0</div>
+                <div class="stat-label">More than 30 days</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel mt-3 mt-md-4">
+          <div class="panel-header flex-wrap gap-2">
+            <h2 class="panel-title"><i class="bi bi-table me-2"></i>Expiry Management</h2>
+            <div class="toolbar">
+              <div class="input-group input-group-sm search-box">
+                <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                <input type="search" class="form-control" id="expirySearch" placeholder="Search by medicine name..." />
+              </div>
+              <select class="form-select form-select-sm filter-select" id="expiryFilter">
+                <option value="all">All statuses</option>
+                <option value="expired">Expired</option>
+                <option value="expiring">Expiring soon</option>
+                <option value="active">Active</option>
+                <option value="unknown">No expiry date</option>
+              </select>
+              <select class="form-select form-select-sm filter-select" id="expirySort" aria-label="Sort expiry list">
+                <option value="days_asc">Sort: Days remaining (fewest)</option>
+                <option value="days_desc">Sort: Days remaining (most)</option>
+                <option value="expiry_asc">Sort: Expiry date (soonest)</option>
+                <option value="expiry_desc">Sort: Expiry date (latest)</option>
+                <option value="name_asc">Sort: Name (A–Z)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="panel-body p-0">
+            <div class="table-responsive">
+              <table class="table medicines-table align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Medicine</th>
+                    <th>Dosage</th>
+                    <th>Expiry Date</th>
+                    <th>Days Remaining</th>
+                    <th>Status</th>
+                    <th class="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="expiryBody"></tbody>
+              </table>
+            </div>
+
+            <div class="empty-state d-none" id="expiryEmpty">
+              <i class="bi bi-calendar-x"></i>
+              <h3 id="expiryEmptyTitle">No medicines yet</h3>
+              <p class="mb-3" id="expiryEmptyText">Add medicines to track their expiry dates.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ REMINDERS VIEW ============ -->
+      <section id="view-reminders" class="view d-none">
+        <!-- Browser notification banner -->
+        <div class="notif-banner">
+          <div class="notif-banner-text">
+            <span class="notif-icon"><i class="bi bi-bell-fill"></i></span>
+            <div>
+              <strong>Browser reminders</strong>
+              <div class="small text-muted" id="notifState">Notifications are off.</div>
+              <div class="small text-muted">Reminders only fire while MediTrack is open in a browser tab — browsers cannot deliver them once the tab or browser is fully closed.</div>
+            </div>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-primary btn-sm" id="notifEnableBtn"><i class="bi bi-bell me-1"></i>Enable</button>
+            <button class="btn btn-outline-secondary btn-sm d-none" id="notifDisableBtn">Disable</button>
+            <button class="btn btn-outline-primary btn-sm" id="notifTestBtn">Test</button>
+          </div>
+        </div>
+
+        <div class="row g-3 g-md-4">
+          <div class="col-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon icon-blue"><i class="bi bi-alarm-fill"></i></div>
+              <div>
+                <div class="stat-value" id="statActiveReminders">0</div>
+                <div class="stat-label">Active Reminders</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon icon-amber"><i class="bi bi-bell-fill"></i></div>
+              <div>
+                <div class="stat-value" id="statDue">0</div>
+                <div class="stat-label">Due Now</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon icon-green"><i class="bi bi-check-circle-fill"></i></div>
+              <div>
+                <div class="stat-value" id="statTaken">0</div>
+                <div class="stat-label">Taken Today</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-icon icon-red"><i class="bi bi-x-circle-fill"></i></div>
+              <div>
+                <div class="stat-value" id="statMissed">0</div>
+                <div class="stat-label">Missed Today</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 g-md-4 mt-0">
+          <div class="col-lg-7">
+            <div class="panel h-100">
+              <div class="panel-header">
+                <h2 class="panel-title"><i class="bi bi-calendar-day me-2"></i>Today's Medication Schedule</h2>
+                <span class="text-muted small" id="todayDateLabel"></span>
+              </div>
+              <div class="panel-body">
+                <ul class="schedule-list" id="todayScheduleList"></ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-5">
+            <div class="panel h-100">
+              <div class="panel-header">
+                <h2 class="panel-title"><i class="bi bi-hourglass-split me-2"></i>Upcoming Reminders</h2>
+              </div>
+              <div class="panel-body">
+                <ul class="upcoming-list" id="upcomingRemindersList"></ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel mt-3 mt-md-4">
+          <div class="panel-header flex-wrap gap-2">
+            <h2 class="panel-title"><i class="bi bi-alarm me-2"></i>All Reminders</h2>
+            <div class="toolbar">
+              <div class="input-group input-group-sm search-box">
+                <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                <input type="search" class="form-control" id="reminderSearch" placeholder="Search by medicine name..." />
+              </div>
+              <button class="btn btn-primary btn-sm text-nowrap" id="addReminderBtn">
+                <i class="bi bi-plus-lg"></i><span class="ms-1">Add Reminder</span>
+              </button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="reminder-grid" id="reminderList"></div>
+            <div class="empty-state d-none" id="reminderEmpty">
+              <i class="bi bi-alarm"></i>
+              <h3>No reminders yet</h3>
+              <p class="mb-3">Create a schedule to be reminded about your medicines.</p>
+              <button class="btn btn-primary btn-sm" id="reminderEmptyAddBtn"><i class="bi bi-plus-lg me-1"></i>Add Reminder</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ SETTINGS VIEW ============ -->
+      <section id="view-settings" class="view d-none">
+        <div class="row g-3 g-md-4">
+          <div class="col-lg-6">
+            <div class="panel h-100">
+              <div class="panel-header"><h2 class="panel-title"><i class="bi bi-info-circle me-2"></i>Application</h2></div>
+              <div class="panel-body">
+                <dl class="settings-list">
+                  <dt>Storage</dt><dd>Firebase Firestore (project <code>meditrack-3a681</code>)</dd>
+                  <dt>Signed in as</dt><dd id="settingsUserEmail">—</dd>
+                  <dt>Backend</dt><dd>Python Flask REST API</dd>
+                  <dt>API base</dt><dd><code>/api/medicines</code></dd>
+                  <dt>Expiry alert window</dt><dd>30 days</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="panel h-100">
+              <div class="panel-header"><h2 class="panel-title"><i class="bi bi-database me-2"></i>Data</h2></div>
+              <div class="panel-body">
+                <dl class="settings-list">
+                  <dt>Records stored</dt><dd id="settingsTotal">0</dd>
+                  <dt>Last refreshed</dt><dd id="settingsLastLoaded">—</dd>
+                </dl>
+                <button class="btn btn-outline-primary btn-sm mt-2" id="settingsReloadBtn">
+                  <i class="bi bi-arrow-clockwise me-1"></i>Reload data
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  </div><!-- /#appRoot -->
+
+  <!-- ============ ADD / EDIT MODAL ============ -->
+  <div class="modal fade" id="medicineModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form id="medicineForm" novalidate>
+          <div class="modal-header">
+            <h5 class="modal-title" id="medicineModalTitle">Add Medicine</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="medicineId" />
+
+            <div class="mb-3">
+              <label class="form-label" for="name">Medicine name <span class="req">*</span></label>
+              <input type="text" class="form-control" id="name" placeholder="e.g. Paracetamol" required />
+              <div class="invalid-feedback">Please enter the medicine name.</div>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="dosage">Dosage <span class="req">*</span></label>
+                <input type="text" class="form-control" id="dosage" placeholder="e.g. 500 mg" required />
+                <div class="invalid-feedback">Please enter the dosage.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="frequency">Frequency <span class="req">*</span></label>
+                <input type="text" class="form-control" id="frequency" list="frequencyOptions" placeholder="e.g. Twice daily" required />
+                <datalist id="frequencyOptions">
+                  <option value="Once daily"></option>
+                  <option value="Twice daily"></option>
+                  <option value="Three times daily"></option>
+                  <option value="Four times daily"></option>
+                  <option value="Every 6 hours"></option>
+                  <option value="Weekly"></option>
+                  <option value="As needed"></option>
+                </datalist>
+                <div class="invalid-feedback">Please enter the frequency.</div>
+              </div>
+            </div>
+
+            <div class="row g-3 mt-0">
+              <div class="col-md-6">
+                <label class="form-label" for="start_date">Start date</label>
+                <input type="date" class="form-control" id="start_date" />
+                <div class="invalid-feedback">Invalid start date.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="expiry_date">Expiry date</label>
+                <input type="date" class="form-control" id="expiry_date" />
+                <div class="invalid-feedback">Expiry date cannot be before the start date.</div>
+              </div>
+            </div>
+
+            <div class="mt-3">
+              <label class="form-label" for="notes">Notes</label>
+              <textarea class="form-control" id="notes" rows="2" placeholder="Optional notes (e.g. take after food)"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="saveBtn">
+              <span class="spinner-border spinner-border-sm d-none" id="saveSpinner"></span>
+              <span id="saveBtnText">Save Medicine</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ DELETE CONFIRM MODAL ============ -->
+  <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Delete medicine</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-0">Are you sure you want to delete <strong id="deleteName">this medicine</strong>? This action cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+            <span class="spinner-border spinner-border-sm d-none" id="deleteSpinner"></span>
+            <span id="deleteBtnText">Delete</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MEDICINE DETAILS MODAL ============ -->
+  <div class="modal fade" id="detailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Medicine Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="details-head">
+            <div class="details-avatar"><i class="bi bi-capsule"></i></div>
+            <div class="details-head-text">
+              <div class="details-name" id="dtlName">—</div>
+              <div class="details-status" id="dtlStatus"></div>
+            </div>
+          </div>
+
+          <dl class="details-grid">
+            <div>
+              <dt>Dosage</dt>
+              <dd id="dtlDosage">—</dd>
+            </div>
+            <div>
+              <dt>Frequency</dt>
+              <dd id="dtlFrequency">—</dd>
+            </div>
+            <div>
+              <dt>Start date</dt>
+              <dd id="dtlStart">—</dd>
+            </div>
+            <div>
+              <dt>Expiry date</dt>
+              <dd id="dtlExpiry">—</dd>
+            </div>
+            <div class="span-2">
+              <dt>Expiry status</dt>
+              <dd id="dtlExpiryStatus">—</dd>
+            </div>
+            <div class="span-2 d-none" id="dtlExpiryWarning"></div>
+            <div class="span-2">
+              <dt>Notes</dt>
+              <dd id="dtlNotes">—</dd>
+            </div>
+            <div class="span-2">
+              <dt>Medicine ID</dt>
+              <dd id="dtlId" class="text-muted details-id">—</dd>
+            </div>
+          </dl>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-primary" id="dtlEditBtn">
+            <i class="bi bi-pencil-square me-1"></i>Edit
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ADD / EDIT REMINDER MODAL ============ -->
+  <div class="modal fade" id="reminderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <form id="reminderForm" novalidate>
+          <div class="modal-header">
+            <h5 class="modal-title" id="reminderModalTitle">Add Reminder</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="reminderId" />
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="rmMedicine">Medicine <span class="req">*</span></label>
+                <select class="form-select" id="rmMedicine">
+                  <option value="">Select a medicine…</option>
+                </select>
+                <div class="invalid-feedback">Please select a medicine.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="rmDosage">Dosage <span class="req">*</span></label>
+                <input type="text" class="form-control" id="rmDosage" placeholder="e.g. 500 mg" required />
+                <div class="invalid-feedback">Please enter the dosage.</div>
+              </div>
+            </div>
+
+            <div class="row g-3 mt-0">
+              <div class="col-md-6">
+                <label class="form-label" for="rmFrequency">Frequency <span class="req">*</span></label>
+                <select class="form-select" id="rmFrequency">
+                  <option value="Once daily">Once daily</option>
+                  <option value="Twice daily">Twice daily</option>
+                  <option value="Three times daily">Three times daily</option>
+                  <option value="Four times daily">Four times daily</option>
+                  <option value="Custom">Custom schedule</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="rmStatus">Schedule status</label>
+                <select class="form-select" id="rmStatus">
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="mt-3">
+              <label class="form-label d-flex justify-content-between align-items-center">
+                <span>Reminder times <span class="req">*</span></span>
+                <span class="text-muted small" id="rmTimesHint"></span>
+              </label>
+              <div class="time-list" id="rmTimesList"></div>
+              <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="rmAddTimeBtn">
+                <i class="bi bi-plus-lg me-1"></i>Add time
+              </button>
+              <div class="invalid-feedback d-block d-none" id="rmTimesError">Please provide the required number of reminder times.</div>
+            </div>
+
+            <div class="row g-3 mt-1">
+              <div class="col-md-6">
+                <label class="form-label" for="rmStart">Start date</label>
+                <input type="date" class="form-control" id="rmStart" />
+                <div class="invalid-feedback">Invalid start date.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="rmEnd">End date</label>
+                <input type="date" class="form-control" id="rmEnd" />
+                <div class="invalid-feedback">End date cannot be before the start date.</div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="reminderSaveBtn">
+              <span class="spinner-border spinner-border-sm d-none" id="reminderSaveSpinner"></span>
+              <span id="reminderSaveBtnText">Save Reminder</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ DELETE REMINDER MODAL ============ -->
+  <div class="modal fade" id="reminderDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Delete reminder</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-0">Are you sure you want to delete the reminder for <strong id="reminderDeleteName">this medicine</strong>? This action cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirmReminderDeleteBtn">
+            <span class="spinner-border spinner-border-sm d-none" id="reminderDeleteSpinner"></span>
+            <span id="reminderDeleteBtnText">Delete</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notifications -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Firebase Web SDK (compat) + public web config + authentication layer.
+       Only public client identifiers are used here; the Admin SDK /
+       service-account key is never exposed to the browser. -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="{{ url_for('static', filename='js/firebase-config.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
