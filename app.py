@@ -118,6 +118,9 @@ def health():
         "storage": store.mode,
         "firebase_ready": firebase_config.is_ready(),
         "auth_enforced": auth_is_enforced(),
+        # Public value (same id the Web SDK uses); helps spot a project / token
+        # "audience" mismatch that would otherwise surface as a fake 401.
+        "project_id": firebase_config.get_project_id(),
     })
 
 

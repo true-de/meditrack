@@ -22,6 +22,7 @@
     let auth = null;              // firebase.auth() instance once initialised
     let ready = false;            // true once the SDK is initialised
     let lastUid = undefined;      // used to react only to real sign in/out changes
+    let refreshInFlight = null;   // single in-flight forced-refresh promise (de-dupes)
 
     const $ = (id) => document.getElementById(id);
 
@@ -157,17 +158,61 @@
     }
 
     /* ------------------------------------------------------------
-       Authenticated fetch: adds the ID token, refreshes on 401
+       Token management
        ------------------------------------------------------------ */
-    async function getToken(forceRefresh) {
-        const user = auth && auth.currentUser;
-        if (!user) return null;
-        return user.getIdToken(!!forceRefresh);
+    function currentUser() {
+        return (auth && auth.currentUser) || null;
     }
 
+    // Coalesce concurrent forced refreshes into ONE network request so a burst
+    // of dashboard calls (medicines + reminders + logs) cannot trigger a
+    // refresh storm. Resolves to a fresh token, or null on failure.
+    function refreshToken() {
+        const user = currentUser();
+        if (!user) return Promise.resolve(null);
+        if (!refreshInFlight) {
+            refreshInFlight = user.getIdToken(true)
+                .catch(() => null)
+                .then((token) => {
+                    refreshInFlight = null;
+                    return token;
+                });
+        }
+        return refreshInFlight;
+    }
+
+    // getIdToken() returns the cached token and transparently refreshes it when
+    // it is (close to) expired — the SDK handles expiry timing for us.
+    async function getToken(forceRefresh) {
+        const user = currentUser();
+        if (!user) return null;
+        return forceRefresh ? refreshToken() : user.getIdToken();
+    }
+
+    // Ask the server whether it is able to verify tokens at all. Used to make
+    // sure a server-side misconfiguration never signs a valid user out.
+    async function serverCanVerify() {
+        try {
+            const res = await fetch("/api/health", { headers: { "Cache-Control": "no-cache" } });
+            if (!res.ok) return { reachable: true, canVerify: true }; // 5xx: transient
+            const data = await res.json();
+            return { reachable: true, canVerify: !!(data && data.firebase_ready === true) };
+        } catch (_) {
+            return { reachable: false, canVerify: false };
+        }
+    }
+
+    /* ------------------------------------------------------------
+       Authenticated fetch
+       ------------------------------------------------------------
+       * attaches the LATEST ID token to every protected request
+       * refreshes once (de-duped) on 401, then retries with the new token
+       * only signs out on a genuine 401 (a real expired/revoked session)
+       * NEVER signs out on a network error or a 5xx/503 (server fault)
+       ------------------------------------------------------------ */
     async function apiFetch(url, options) {
         const opts = Object.assign({}, options);
-        const user = auth && auth.currentUser;
+        const user = currentUser();
         if (!user) {
             // No signed-in user: never hit a protected endpoint.
             const err = new Error("Please sign in to continue.");
@@ -179,21 +224,47 @@
         headers.set("Authorization", "Bearer " + (await user.getIdToken()));
         opts.headers = headers;
 
-        let res = await fetch(url, opts);
+        let res;
+        try {
+            res = await fetch(url, opts);
+        } catch (networkErr) {
+            // Offline / DNS / connection reset: not an authentication problem.
+            const err = new Error("Network problem — please check your connection and try again.");
+            err.code = "auth/network-error";
+            err.cause = networkErr;
+            throw err;
+        }
+
+        // A server that is down or cannot verify tokens (5xx/503) must never log
+        // the user out — surface the response and let the caller handle it.
+        if (res.status >= 500) return res;
 
         if (res.status === 401) {
-            // The ID token may have expired or been revoked — refresh once, then retry.
-            let refreshed = false;
-            try {
-                const fresh = await user.getIdToken(true);
+            // Token may have expired or been revoked: refresh once and retry.
+            const fresh = await refreshToken();
+            if (fresh) {
                 headers.set("Authorization", "Bearer " + fresh);
-                res = await fetch(url, opts);
-                refreshed = true;
-            } catch (_) {
-                refreshed = false;
+                try {
+                    res = await fetch(url, opts);
+                } catch (networkErr) {
+                    const err = new Error("Network problem — please check your connection and try again.");
+                    err.code = "auth/network-error";
+                    err.cause = networkErr;
+                    throw err;
+                }
             }
-            if (!refreshed || res.status === 401) {
-                // Still rejected: the session is no longer valid.
+
+            if (res.status === 401) {
+                const server = await serverCanVerify();
+                if (!server.reachable || !server.canVerify) {
+                    // The fault is on the server/network, not the user's session.
+                    const err = new Error(server.reachable
+                        ? "Sign-in could not be verified by the server right now. Please try again shortly."
+                        : "Network problem — please check your connection and try again.");
+                    err.code = server.reachable ? "auth/server-unavailable" : "auth/network-error";
+                    throw err;
+                }
+                // Genuinely invalid session: sign out and tell the user.
                 await signOut();
                 const err = new Error("Your session has expired. Please sign in again.");
                 err.code = "auth/session-expired";
@@ -203,7 +274,6 @@
 
         // 403 (authenticated but not the owner) is returned to the caller, which
         // surfaces the backend's message via its standard error handling.
-
         return res;
     }
 
