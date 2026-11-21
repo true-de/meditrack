@@ -1,0 +1,1104 @@
+/* ============================================================
+   MediTrack — styles.css
+   Blue & white healthcare theme. Large, readable, accessible.
+   ============================================================ */
+
+/* ---------- Design tokens ---------- */
+:root {
+  --color-primary: #1e6fd9;
+  --color-primary-dark: #1557ab;
+  --color-primary-light: #e8f1fd;
+  --color-primary-soft: #f2f7fe;
+  --color-accent: #17b8a6;
+
+  --color-bg: #f4f7fb;
+  --color-surface: #ffffff;
+  --color-text: #16233a;
+  --color-text-muted: #5c6b80;
+  --color-border: #d9e2ee;
+
+  --color-taken: #2e9e5b;
+  --color-taken-bg: #e7f6ec;
+  --color-missed: #d64545;
+  --color-missed-bg: #fdeaea;
+  --color-pending: #d9930d;
+  --color-pending-bg: #fdf3e0;
+
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow-sm: 0 2px 8px rgba(20, 60, 120, 0.06);
+  --shadow: 0 6px 20px rgba(20, 60, 120, 0.1);
+  --shadow-lg: 0 18px 45px rgba(20, 60, 120, 0.18);
+
+  --font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  --font-base: 17px;
+
+  --header-h: 68px;
+  --nav-h: 64px;
+  --max-w: 1080px;
+}
+
+/* ---------- Reset ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-base);
+  line-height: 1.55;
+  color: var(--color-text);
+  background: var(--color-bg);
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: 1.5rem;
+}
+
+h3 {
+  font-size: 1.25rem;
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+code {
+  font-family: Consolas, "Courier New", monospace;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 0.9em;
+}
+
+/* ---------- Utilities ---------- */
+.muted {
+  color: var(--color-text-muted);
+}
+
+.brand {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-primary);
+}
+
+.brand--lg {
+  font-size: 2rem;
+  margin-bottom: 6px;
+}
+
+.ico {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 1rem;
+  transition: background-color 0.15s, transform 0.05s, box-shadow 0.15s;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.btn--primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.btn--primary:hover {
+  background: var(--color-primary-dark);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--color-primary-dark);
+  border-color: var(--color-border);
+}
+
+.btn--ghost:hover {
+  background: var(--color-primary-light);
+}
+
+.btn--danger {
+  background: var(--color-missed);
+  color: #fff;
+}
+
+.btn--danger:hover {
+  background: #b93a3a;
+}
+
+.btn--taken {
+  background: var(--color-taken-bg);
+  color: var(--color-taken);
+  border-color: #bfe6cd;
+}
+
+.btn--taken:hover {
+  background: var(--color-taken);
+  color: #fff;
+}
+
+.btn--missed {
+  background: var(--color-missed-bg);
+  color: var(--color-missed);
+  border-color: #f3cccc;
+}
+
+.btn--missed:hover {
+  background: var(--color-missed);
+  color: #fff;
+}
+
+.btn--sm {
+  padding: 8px 14px;
+  font-size: 0.9rem;
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.btn--disabled,
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.icon-btn:hover {
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.icon-btn:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-missed);
+  border: 2px solid var(--color-surface);
+}
+
+/* ---------- Forms ---------- */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field > span {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.field--inline {
+  min-width: 140px;
+}
+
+.field input,
+.field select,
+.field textarea {
+  padding: 13px 14px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+.hint {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.form-message {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-weight: 500;
+  background: var(--color-missed-bg);
+  color: var(--color-missed);
+}
+
+.form-message.is-success {
+  background: var(--color-taken-bg);
+  color: var(--color-taken);
+}
+
+.fieldset {
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  margin: 0;
+}
+
+.fieldset legend {
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0 6px;
+}
+
+.time-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.time-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.time-row input[type="time"] {
+  padding: 10px 12px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.remove-time {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--color-missed);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remove-time:hover {
+  background: var(--color-missed-bg);
+}
+
+/* ---------- Center screens (setup / auth) ---------- */
+.center-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(160deg, #eef5fd 0%, #f7fafe 100%);
+}
+
+.auth-card,
+.setup-card {
+  width: 100%;
+  max-width: 440px;
+  padding: 36px 32px;
+  box-shadow: var(--shadow);
+}
+
+.setup-card {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.setup-card__title {
+  color: var(--color-primary-dark);
+}
+
+.auth-card__head {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+/* ---------- Tabs ---------- */
+.tabs {
+  display: flex;
+  background: var(--color-primary-soft);
+  border-radius: var(--radius-sm);
+  padding: 5px;
+  margin-bottom: 22px;
+}
+
+.tab {
+  flex: 1;
+  padding: 11px;
+  border-radius: 8px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.tab.is-active {
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ============================================================
+   APP SHELL
+   ============================================================ */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 20px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.brand-mark .ico {
+  width: 24px;
+  height: 24px;
+}
+
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.user-name {
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-right: 4px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Navigation ---------- */
+.app-nav {
+  position: sticky;
+  top: var(--header-h);
+  z-index: 15;
+  display: flex;
+  gap: 6px;
+  padding: 10px 20px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.nav-link:hover {
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.nav-link.is-active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+/* ---------- Main / views ---------- */
+.app-main {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+}
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.view__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* ---------- Progress card ---------- */
+.progress-card {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 26px 30px;
+  flex-wrap: wrap;
+}
+
+.progress-ring {
+  position: relative;
+  width: 130px;
+  height: 130px;
+  flex-shrink: 0;
+}
+
+.progress-ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.ring-bg {
+  fill: none;
+  stroke: var(--color-primary-light);
+  stroke-width: 12;
+}
+
+.ring-fill {
+  fill: none;
+  stroke: var(--color-taken);
+  stroke-width: 12;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s ease, stroke 0.3s;
+}
+
+.progress-ring__label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.progress-ring__label strong {
+  font-size: 1.7rem;
+  color: var(--color-primary-dark);
+}
+
+.progress-ring__label small {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.progress-stats {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 220px;
+}
+
+.stat {
+  flex: 1;
+  min-width: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 14px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+}
+
+.stat strong {
+  font-size: 1.7rem;
+  line-height: 1.1;
+}
+
+.stat small {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.stat--taken strong {
+  color: var(--color-taken);
+}
+
+.stat--pending strong {
+  color: var(--color-pending);
+}
+
+.stat--missed strong {
+  color: var(--color-missed);
+}
+
+/* ---------- Notification banner ---------- */
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  background: var(--color-primary-light);
+  border: 1px solid #cfe1f8;
+  flex-wrap: wrap;
+}
+
+.banner p {
+  font-size: 0.9rem;
+}
+
+/* ---------- Dose list ---------- */
+.dose-list,
+.medicine-list,
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dose-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 5px solid var(--color-pending);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
+}
+
+.dose-item.status-taken {
+  border-left-color: var(--color-taken);
+}
+
+.dose-item.status-missed {
+  border-left-color: var(--color-missed);
+}
+
+.dose-item__time {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--color-primary-dark);
+  min-width: 92px;
+}
+
+.dose-item__info {
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+}
+
+.dose-item__name {
+  font-size: 1.05rem;
+}
+
+.dose-item__meta {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.dose-item__actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---------- Badges ---------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.badge .ico {
+  width: 17px;
+  height: 17px;
+}
+
+.badge--taken {
+  background: var(--color-taken-bg);
+  color: var(--color-taken);
+}
+
+.badge--missed {
+  background: var(--color-missed-bg);
+  color: var(--color-missed);
+}
+
+.badge--pending {
+  background: var(--color-pending-bg);
+  color: var(--color-pending);
+}
+
+/* ---------- Medicine card ---------- */
+.medicine-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
+}
+
+.medicine-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  flex-shrink: 0;
+}
+
+.medicine-card__body {
+  flex: 1;
+  min-width: 180px;
+}
+
+.medicine-card__name {
+  font-size: 1.15rem;
+  margin-bottom: 2px;
+}
+
+.medicine-card__dosage {
+  color: var(--color-primary-dark);
+  font-weight: 600;
+}
+
+.medicine-card__instructions {
+  color: var(--color-text-muted);
+  font-size: 0.92rem;
+  margin-top: 4px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.medicine-card__actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* ---------- History ---------- */
+.history-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.history-group__date {
+  font-weight: 700;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  padding-left: 4px;
+  margin-top: 6px;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.history-item__time {
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  min-width: 84px;
+}
+
+.history-item__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-item__meta {
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+
+/* ---------- Empty state ---------- */
+.empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius);
+}
+
+.empty__icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.empty__icon .ico {
+  width: 28px;
+  height: 28px;
+}
+
+/* ---------- Modal ---------- */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(16, 32, 56, 0.5);
+  backdrop-filter: blur(2px);
+}
+
+.modal__panel {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 24px;
+  animation: modal-in 0.18s ease;
+}
+
+.modal__panel--sm {
+  max-width: 400px;
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* ---------- Toast ---------- */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(420px, calc(100% - 32px));
+}
+
+.toast {
+  padding: 14px 18px;
+  border-radius: var(--radius-sm);
+  background: var(--color-text);
+  color: #fff;
+  box-shadow: var(--shadow);
+  font-weight: 500;
+  animation: toast-in 0.2s ease;
+}
+
+.toast--success {
+  background: var(--color-taken);
+}
+
+.toast--error {
+  background: var(--color-missed);
+}
+
+.toast--info {
+  background: var(--color-primary-dark);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- Skeleton / loading ---------- */
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--color-text-muted);
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 720px) {
+  :root {
+    --font-base: 16px;
+  }
+
+  .app-main {
+    padding: 18px 14px calc(var(--nav-h) + 30px);
+  }
+
+  .progress-card {
+    gap: 20px;
+    padding: 20px;
+    justify-content: center;
+  }
+
+  .app-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    justify-content: space-around;
+    padding: 8px 6px;
+    border-top: 1px solid var(--color-border);
+    border-bottom: none;
+    box-shadow: 0 -2px 12px rgba(20, 60, 120, 0.06);
+  }
+
+  .nav-link {
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 14px;
+    font-size: 0.78rem;
+    flex: 1;
+  }
+
+  .nav-link.is-active {
+    background: transparent;
+    color: var(--color-primary);
+  }
+
+  .hide-sm {
+    display: none;
+  }
+
+  .user-name {
+    max-width: 90px;
+    font-size: 0.9rem;
+  }
+
+  .dose-item__actions {
+    width: 100%;
+  }
+
+  .dose-item__actions .btn {
+    flex: 1;
+  }
+
+  .view__head {
+    align-items: stretch;
+  }
+
+  .view__head .btn {
+    justify-content: center;
+  }
+
+  .toast-container {
+    bottom: calc(var(--nav-h) + 16px);
+  }
+}
+
+@media (max-width: 420px) {
+  .progress-ring {
+    width: 110px;
+    height: 110px;
+  }
+
+  .brand--lg {
+    font-size: 1.7rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

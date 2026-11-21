@@ -1,0 +1,59 @@
+rules_version = '2';
+
+// ============================================================
+// MediTrack — Firestore security rules
+// Users may only read/write their own data.
+//   users/{uid}
+//   users/{uid}/medicines/{medicineId}
+//   users/{uid}/doses/{doseId}
+// ============================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // ----- User profile -----
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+                            && request.resource.data.email is string
+                            && request.resource.data.email.size() < 256;
+      allow delete: if false; // profiles are never deleted from the client
+
+      // ----- Medicines -----
+      match /medicines/{medicineId} {
+        allow read, delete: if isOwner(userId);
+
+        allow create, update: if isOwner(userId)
+                              && request.resource.data.name is string
+                              && request.resource.data.name.size() > 0
+                              && request.resource.data.name.size() <= 120
+                              && request.resource.data.dosage is string
+                              && request.resource.data.dosage.size() <= 120
+                              && request.resource.data.times is list
+                              && request.resource.data.times.size() > 0
+                              && request.resource.data.times.size() <= 10;
+      }
+
+      // ----- Dose records (daily schedule instances) -----
+      match /doses/{doseId} {
+        allow read, write: if isOwner(userId)
+                           && request.resource.data.medicineName is string
+                           && request.resource.data.date is string
+                           && request.resource.data.time is string
+                           && request.resource.data.status in ['pending', 'taken', 'missed'];
+      }
+    }
+
+    // Deny everything else by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

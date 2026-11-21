@@ -1,0 +1,16 @@
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Node (only used for the Firebase CLI)
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Secrets / environment files — never commit these
+.env
+.env.*
+*.local
+serviceAccountKey.json
